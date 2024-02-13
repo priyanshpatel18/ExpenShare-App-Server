@@ -14,13 +14,7 @@ import { clearExpiredOTPs } from "./utils/otpUtils";
 const app: Express = express();
 
 // Middlewares
-app.use(
-  cors({
-    origin: "https://expenshare.vercel.app",
-    methods: ["GET", "POST", "PUT", "DELETE"],
-    credentials: true,
-  })
-);
+app.use(cors());
 app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -37,9 +31,9 @@ cron.schedule(
     console.log("Running otp cleanup job...");
     try {
       await clearExpiredOTPs();
-      console.log("Session cleanup completed.");
+      console.log("OTP cleanup completed.");
     } catch (error) {
-      console.error("Error during session cleanup:", error);
+      console.error("Error during otp cleanup:", error);
     }
   },
   {

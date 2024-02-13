@@ -6,9 +6,15 @@ import * as userController from "../controllers/androidUserController";
 const appUserRouter = Router();
 
 appUserRouter
-  .post("/register", userController.registerUser)
+  .post(
+    "/register",
+    upload.single("profilePicture"),
+    userController.registerUser
+  )
   .post("/login", userController.loginUser)
   .post("/sendMail", userController.sendMail)
-  .post("/verifyOtp", userController.verifyOtp);
+  .post("/sendVerifyEmail", userController.sendVerifyEmail)
+  .post("/verifyMail", userController.verifyOtp)
+  .post("/verifyEmail", userController.verifyEmail);
 
 export default appUserRouter;
