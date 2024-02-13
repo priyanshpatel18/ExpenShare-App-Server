@@ -7,7 +7,7 @@ import mongoose from "mongoose";
 import cron from "node-cron";
 import path from "path";
 // File Imports
-import webUserRouter from "./routes/webUserRouter";
+import androidUserRouter from "./routes/androidUserRouter";
 import { clearExpiredOTPs } from "./utils/otpUtils";
 
 // Creating Backend Application
@@ -28,8 +28,7 @@ app.set("view-engine", "ejs");
 app.set("views", path.resolve("./views"));
 
 // Routes
-app.use("/user/v1", webUserRouter);
-// app.use("/user/v2", appUserRouter);
+app.use("/user", androidUserRouter);
 
 // OTP Cleanup
 cron.schedule(
