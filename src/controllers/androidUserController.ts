@@ -36,7 +36,7 @@ export const registerUser = async (req: Request, res: Response) => {
       password,
     });
     //Created User
-    res.status(200).json({ message: "User registered successfully" });
+    res.status(200).json({ message: "Account Registered Successfully" });
   } catch (error) {
     console.log(error);
     res.status(500).json({ message: "Internal Server Error" });
