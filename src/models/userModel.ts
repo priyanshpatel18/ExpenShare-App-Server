@@ -1,5 +1,5 @@
 import bcrypt from "bcrypt";
-import { Document, Schema, model } from "mongoose";
+import { Document, Schema, Types, model } from "mongoose";
 
 export interface UserDocument extends Document {
   _id: string;
@@ -8,6 +8,8 @@ export interface UserDocument extends Document {
   password: string;
   profilePicture: string;
   publicId: string;
+  expenses: [Types.ObjectId];
+  incomes: [Types.ObjectId];
 }
 
 const userSchema = new Schema<UserDocument>({
@@ -30,6 +32,16 @@ const userSchema = new Schema<UserDocument>({
   },
   publicId: {
     type: String,
+  },
+  expenses: {
+    type: [Types.ObjectId],
+    ref: "Expense",
+    required: true,
+  },
+  incomes: {
+    type: [Types.ObjectId],
+    ref: "Income",
+    required: true,
   },
 });
 

@@ -1,6 +1,5 @@
 import { Router } from "express";
 import upload from "../middlewares/multer";
-import allowOnlyLoggedInUser from "../middlewares/userAuth";
 import * as userController from "../controllers/androidUserController";
 
 const appUserRouter = Router();
@@ -15,6 +14,7 @@ appUserRouter
   .post("/sendMail", userController.sendMail)
   .post("/sendVerifyEmail", userController.sendVerifyEmail)
   .post("/verifyMail", userController.verifyOtp)
-  .post("/verifyEmail", userController.verifyEmail);
+  .post("/verifyEmail", userController.verifyEmail)
+  .post("/getUser", userController.getUser);
 
 export default appUserRouter;

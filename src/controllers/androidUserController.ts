@@ -229,3 +229,24 @@ export const verifyEmail = async (req: Request, res: Response) => {
     res.status(500).json({ message: "Internal server error" });
   }
 };
+
+export const getUser = async (req: Request, res: Response) => {
+  const { email } = req.body;
+
+  try {
+    const user: UserDocument | null = await User.findOne({
+      $or: [{ email: email }, { userName: email }],
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: "User does not exist" });
+    }
+
+    return res
+      .status(200)
+      .json({ profilePicture: user.profilePicture, userName: user.userName });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
