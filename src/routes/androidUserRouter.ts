@@ -14,8 +14,7 @@ appUserRouter
   .post("/login", userController.loginUser)
   .post("/sendMail", userController.sendMail)
   .post("/sendVerifyEmail", userController.sendVerifyEmail)
-  .post("/verifyMail", userController.verifyOtp)
-  .post("/verifyEmail", userController.verifyEmail)
+  .post("/verifyOtp", userController.verifyOtp)
   .post("/getUser", userController.getUser);
 
 export default appUserRouter;

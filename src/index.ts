@@ -8,7 +8,7 @@ import cron from "node-cron";
 import path from "path";
 // File Imports
 import androidUserRouter from "./routes/androidUserRouter";
-import { clearExpiredOTPs } from "./utils/otpUtils";
+import clearExpiredCollections from "./utils/cronUtils";
 
 // Creating Backend Application
 const app: Express = express();
@@ -28,12 +28,12 @@ app.use("/user", androidUserRouter);
 cron.schedule(
   "0 * * * *",
   async () => {
-    console.log("Running otp cleanup job...");
+    console.log("Running Collections cleanup job...");
     try {
-      await clearExpiredOTPs();
-      console.log("OTP cleanup completed.");
+      await clearExpiredCollections();
+      console.log("Collections cleanup completed.");
     } catch (error) {
-      console.error("Error during otp cleanup:", error);
+      console.error("Error during Collections cleanup:", error);
     }
   },
   {

@@ -10,14 +10,6 @@
     {
       "src": "/favicon.ico",
       "status": 404
-    },
-    {
-      "src": "/",
-      "status": 404
-    },
-    {
-      "src": "/(.*)",
-      "dest": "src/index.ts"
     }
   ]
 }

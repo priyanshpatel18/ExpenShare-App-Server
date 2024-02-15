@@ -8,35 +8,44 @@ import User, { UserDocument } from "../models/userModel";
 import { setToken } from "../service/auth";
 import cloudinary from "../utils/cloudinary";
 import transporter from "../utils/sendMailUtils";
+import UserData, { UserDataDocument } from "../models/userDataModel";
 
 // POST : /user/register
 export const registerUser = async (req: Request, res: Response) => {
-  const { userName, email, password } = req.body;
-  const profilePicture = req.file?.path;
-
-  let profileUrl = "";
-  let publicId = "";
-
-  if (profilePicture) {
-    // Upload the file data to Cloudinary
-    const result = await cloudinary.uploader.upload(profilePicture, {
-      folder: "uploads",
-      resource_type: "auto",
-    });
-    profileUrl = result.secure_url;
-    publicId = result.public_id;
-  }
-
   try {
+    const { userDataId } = req.body;
+    const profilePicture = req.file?.path;
+
+    const userData = await UserData.findOne({ _id: userDataId });
+
+    if (!userData) {
+      return res.status(401).json({ message: "User Data Expired" });
+    }
+
+    let profileUrl = "";
+    let publicId = "";
+
+    if (profilePicture) {
+      const result = await cloudinary.uploader.upload(profilePicture, {
+        folder: "uploads",
+      });
+      profileUrl = result.secure_url;
+      publicId = result.public_id;
+    }
+
     await User.create({
-      email,
-      userName,
+      email: userData.email,
+      userName: userData.userName,
       profilePicture: profileUrl,
       publicId,
-      password,
+      password: userData.password,
     });
-    //Created User
-    res.status(200).json({ message: "Account Registered Successfully" });
+
+    await UserData.deleteOne({ userDataId });
+    res.status(200).json({
+      message: "Account Registered Successfully",
+      email: userData.email,
+    });
   } catch (error) {
     console.log(error);
     res.status(500).json({ message: "Internal Server Error" });
@@ -89,7 +98,7 @@ export const sendMail = async (req: Request, res: Response) => {
     upperCaseAlphabets: false,
     specialChars: false,
   });
-
+ 
   // Render EJS Template
   const templatePath: string = path.resolve(
     __dirname,
@@ -148,7 +157,7 @@ export const verifyOtp = async (req: Request, res: Response) => {
     }
 
     await OTP.deleteOne({ _id: otpId });
-    return res.status(200).json({ message: "Create a new Password" });
+    return res.sendStatus(200);
   } catch (error) {
     console.log(error);
     res.status(500).json({ message: "Internal server error" });
@@ -157,7 +166,17 @@ export const verifyOtp = async (req: Request, res: Response) => {
 
 // POST : /user/verifyMail
 export const sendVerifyEmail = async (req: Request, res: Response) => {
-  const { email } = req.body;
+  const { email, userName, password, selectedImage } = req.body;
+
+  const user: UserDocument | null = await User.findOne({
+    $or: [{ email: email }, { userName: userName }],
+  });
+  if (user?.email === email) {
+    res.status(401).json({ message: "Email should be unique" });
+  }
+  if (user?.userName === userName) {
+    res.status(401).json({ message: "Username should be unique" });
+  }
 
   // Generate OTP and set it in the session
   const otp: string = otpGenerator.generate(6, {
@@ -193,40 +212,21 @@ export const sendVerifyEmail = async (req: Request, res: Response) => {
       email: email,
     });
 
+    const UserDataDocument: UserDataDocument = await UserData.create({
+      email,
+      userName,
+      password,
+      profilePicture: selectedImage,
+    });
+
     res.status(200).json({
       message: "OTP Sent Successfully",
       otpId: otpDocument._id,
+      userDataId: UserDataDocument._id,
     });
   } catch (error) {
     console.log(error);
     res.status(500).send("Internal Server Error");
-  }
-};
-
-export const verifyEmail = async (req: Request, res: Response) => {
-  const { userOtp, otpId } = req.body;
-
-  try {
-    // Find the OTP document in the database by its ID
-    const otp: OTPDocument | null = await OTP.findById(otpId);
-
-    // Check if the OTP document exists
-    if (!otp) {
-      return res.status(404).json({ message: "OTP not found" });
-    }
-
-    // Compare the user-provided OTP with the OTP from the database
-    const isVerified: boolean = await bcrypt.compare(userOtp, otp.otp);
-
-    if (!isVerified) {
-      return res.status(401).json({ message: "Incorrect OTP" });
-    }
-
-    await OTP.deleteOne({ _id: otpId });
-    return res.status(200).json({ message: "Email Verified Successfully" });
-  } catch (error) {
-    console.log(error);
-    res.status(500).json({ message: "Internal server error" });
   }
 };
 
