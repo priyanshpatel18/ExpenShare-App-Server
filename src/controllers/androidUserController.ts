@@ -247,6 +247,26 @@ export const getUser = async (req: Request, res: Response) => {
       .json({ profilePicture: user.profilePicture, userName: user.userName });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ error: "Internal server error" });
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const resetPassword = async (req: Request, res: Response) => {
+  const { password, email } = req.body;
+
+  try {
+    const user: UserDocument | null = await User.findOne({ email: email });
+
+    if (!user) {
+      return res.status(404).json({ message: "User does not exist" });
+    }
+
+    user.password = password;
+    user.save();
+
+    return res.status(200).json({ message: "Password Changed Successfully" });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: "Internal server error" });
   }
 };

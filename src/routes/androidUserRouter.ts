@@ -15,6 +15,7 @@ appUserRouter
   .post("/sendVerifyEmail", userController.sendVerifyEmail)
   .post("/verifyMail", userController.verifyOtp)
   .post("/verifyEmail", userController.verifyEmail)
-  .post("/getUser", userController.getUser);
+  .post("/getUser", userController.getUser)
+  .post("/resetPassword", userController.resetPassword);
 
 export default appUserRouter;
