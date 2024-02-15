@@ -253,6 +253,7 @@ export const getUser = async (req: Request, res: Response) => {
 
 export const resetPassword = async (req: Request, res: Response) => {
   const { password, email } = req.body;
+  console.log(password, email);
 
   try {
     const user: UserDocument | null = await User.findOne({ email: email });
