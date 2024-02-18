@@ -89,8 +89,6 @@ export const loginUser = async (req: Request, res: Response) => {
           _id: 0,
           profilePicture: 0,
           publicId: 0,
-          expenses: 0,
-          incomes: 0,
           __v: 0,
         },
       ],
@@ -136,10 +134,6 @@ export const sendMail = async (req: Request, res: Response) => {
     {
       _id: 0,
       password: 0,
-      profilePicture: 0,
-      publicId: 0,
-      expenses: 0,
-      incomes: 0,
       __v: 0,
     }
   );
@@ -250,10 +244,6 @@ export const sendVerifyEmail = async (req: Request, res: Response) => {
       {
         _id: 0,
         password: 0,
-        profilePicture: 0,
-        publicId: 0,
-        expenses: 0,
-        incomes: 0,
         __v: 0,
       },
     ],
@@ -349,9 +339,6 @@ export const getUser = async (req: Request, res: Response) => {
       { email },
       {
         _id: 0,
-        publicId: 0,
-        expenses: 0,
-        incomes: 0,
         __v: 0,
       }
     );
@@ -377,10 +364,6 @@ export const resetPassword = async (req: Request, res: Response) => {
       {
         _id: 0,
         userName: 0,
-        profilePicture: 0,
-        publicId: 0,
-        expenses: 0,
-        incomes: 0,
         __v: 0,
       }
     );
@@ -472,10 +455,6 @@ export const getAllTransactions = async (req: Request, res: Response) => {
       {
         userName: 0,
         password: 0,
-        profilePicture: 0,
-        publicId: 0,
-        expenses: 0,
-        incomes: 0,
         __v: 0,
       }
     );
