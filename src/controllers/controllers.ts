@@ -1,5 +1,5 @@
 import bcrypt from "bcrypt";
-import { v2 as cloudinary } from "cloudinary";
+import { UploadApiResponse, v2 as cloudinary } from "cloudinary";
 import ejs from "ejs";
 import { Request, Response } from "express";
 import jwt, { JwtPayload } from "jsonwebtoken";
@@ -29,21 +29,30 @@ cloudinary.config({
 export const registerUser = async (req: Request, res: Response) => {
   try {
     const { userDataId } = req.body;
-    const profilePicture = req.file?.path;
+    const profilePicture: string | undefined = req.file?.path;
 
-    const userData = await UserData.findOne({ _id: userDataId });
+    const userData: UserDataDocument | null = await UserData.findOne(
+      { _id: userDataId },
+      {
+        _id: 0,
+        __v: 0,
+      }
+    );
 
     if (!userData) {
       return res.status(401).json({ message: "User Data Expired" });
     }
 
-    let profileUrl = "";
-    let publicId = "";
+    let profileUrl: string = "";
+    let publicId: string = "";
 
     if (profilePicture) {
-      const result = await cloudinary.uploader.upload(profilePicture, {
-        folder: "uploads",
-      });
+      const result: UploadApiResponse = await cloudinary.uploader.upload(
+        profilePicture,
+        {
+          folder: "uploads",
+        }
+      );
       profileUrl = result.secure_url;
       publicId = result.public_id;
     }
@@ -73,7 +82,18 @@ export const loginUser = async (req: Request, res: Response) => {
 
   try {
     const user: UserDocument | null = await User.findOne({
-      $or: [{ email: userNameOrEmail }, { userName: userNameOrEmail }],
+      $or: [
+        { email: userNameOrEmail },
+        { userName: userNameOrEmail },
+        {
+          _id: 0,
+          profilePicture: 0,
+          publicId: 0,
+          expenses: 0,
+          incomes: 0,
+          __v: 0,
+        },
+      ],
     });
 
     // Check if User Exist or not
@@ -89,7 +109,7 @@ export const loginUser = async (req: Request, res: Response) => {
       return res.status(401).json({ message: "Incorrect Password" });
     }
 
-    const token = jwt.sign(
+    const token: string = jwt.sign(
       {
         email: user.email,
         userName: user.userName,
@@ -111,7 +131,18 @@ export const loginUser = async (req: Request, res: Response) => {
 export const sendMail = async (req: Request, res: Response) => {
   const { email } = req.body;
 
-  const user: UserDocument | null = await User.findOne({ email });
+  const user: UserDocument | null = await User.findOne(
+    { email },
+    {
+      _id: 0,
+      password: 0,
+      profilePicture: 0,
+      publicId: 0,
+      expenses: 0,
+      incomes: 0,
+      __v: 0,
+    }
+  );
   // Check for User Existence
   if (!user) {
     return res.status(401).json({ message: "You need to Register First" });
@@ -156,8 +187,8 @@ export const sendMail = async (req: Request, res: Response) => {
   try {
     await transporter.sendMail(mailOptions);
 
-    const salt = await bcrypt.genSalt(10);
-    const hashedOtp = await bcrypt.hash(otp, salt);
+    const salt: string = await bcrypt.genSalt(10);
+    const hashedOtp: string = await bcrypt.hash(otp, salt);
 
     const otpDocument: OTPDocument = await OTP.create({
       otp: hashedOtp,
@@ -180,7 +211,13 @@ export const verifyOtp = async (req: Request, res: Response) => {
 
   try {
     // Find the OTP document in the database by its ID
-    const otp: OTPDocument | null = await OTP.findById(otpId);
+    const otp: OTPDocument | null = await OTP.findById(
+      { otpId },
+      {
+        _id: 0,
+        __v: 0,
+      }
+    );
 
     // Check if the OTP document exists
     if (!otp) {
@@ -207,7 +244,19 @@ export const sendVerifyEmail = async (req: Request, res: Response) => {
   const { email, userName, password, selectedImage } = req.body;
 
   const user: UserDocument | null = await User.findOne({
-    $or: [{ email: email }, { userName: userName }],
+    $or: [
+      { email: email },
+      { userName: userName },
+      {
+        _id: 0,
+        password: 0,
+        profilePicture: 0,
+        publicId: 0,
+        expenses: 0,
+        incomes: 0,
+        __v: 0,
+      },
+    ],
   });
   if (user?.email === email) {
     res.status(401).json({ message: "Email should be unique" });
@@ -255,8 +304,8 @@ export const sendVerifyEmail = async (req: Request, res: Response) => {
   try {
     await transporter.sendMail(mailOptions);
 
-    const salt = await bcrypt.genSalt(10);
-    const hashedOtp = await bcrypt.hash(otp, salt);
+    const salt: string = await bcrypt.genSalt(10);
+    const hashedOtp: string = await bcrypt.hash(otp, salt);
 
     const otpDocument: OTPDocument = await OTP.create({
       otp: hashedOtp,
@@ -298,7 +347,13 @@ export const getUser = async (req: Request, res: Response) => {
   try {
     const user: UserDocument | null = await User.findOne(
       { email },
-      { password: 0 }
+      {
+        _id: 0,
+        publicId: 0,
+        expenses: 0,
+        incomes: 0,
+        __v: 0,
+      }
     );
 
     if (!user) {
@@ -317,7 +372,18 @@ export const resetPassword = async (req: Request, res: Response) => {
   const { password, email } = req.body;
 
   try {
-    const user: UserDocument | null = await User.findOne({ email: email });
+    const user: UserDocument | null = await User.findOne(
+      { email: email },
+      {
+        _id: 0,
+        userName: 0,
+        profilePicture: 0,
+        publicId: 0,
+        expenses: 0,
+        incomes: 0,
+        __v: 0,
+      }
+    );
 
     if (!user) {
       return res.status(404).json({ message: "User does not exist" });
@@ -337,9 +403,18 @@ export const resetPassword = async (req: Request, res: Response) => {
 export const addTransaction = async (req: Request, res: Response) => {
   const { incomeFlag, email, amount, category, title, notes, transactionDate } =
     req.body;
-  const invoice = req.file?.path;
+  const invoice: string | undefined = req.file?.path;
 
-  const user: UserDocument | null = await User.findOne({ email });
+  const user: UserDocument | null = await User.findOne(
+    { email },
+    {
+      userName: 0,
+      password: 0,
+      profilePicture: 0,
+      publicId: 0,
+      __v: 0,
+    }
+  );
   if (!user) {
     return res.status(401).json({ message: "User not Found" });
   }
@@ -391,13 +466,30 @@ export const addTransaction = async (req: Request, res: Response) => {
 export const getAllTransactions = async (req: Request, res: Response) => {
   const { email } = req.body;
 
-  const user: UserDocument | null = await User.findOne({ email });
+  try {
+    const user: UserDocument | null = await User.findOne(
+      { email },
+      {
+        userName: 0,
+        password: 0,
+        profilePicture: 0,
+        publicId: 0,
+        expenses: 0,
+        incomes: 0,
+        __v: 0,
+      }
+    );
 
-  if (!user) {
-    return res.status(401).json({ message: "User not Found" });
+    if (!user) {
+      return res.status(401).json({ message: "User not Found" });
+    }
+
+    const transactions: TransactionDocument[] | null = await Transaction.find({
+      createdBy: user._id,
+    });
+
+    return res.status(200).json({ transactions });
+  } catch (error) {
+    return res.status(500).json({ message: "Internal Server Error" });
   }
-
-  const transactions = await Transaction.find({ createdBy: user._id });
-
-  return res.status(200).json({ transactions });
 };
