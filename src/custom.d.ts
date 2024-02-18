@@ -6,10 +6,3 @@ declare module "express-serve-static-core" {
     user: User;
   }
 }
-
-declare module "express-session" {
-  interface SessionData {
-    otp: string;
-    email: string;
-  }
-}

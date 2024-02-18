@@ -98,7 +98,7 @@ export const sendMail = async (req: Request, res: Response) => {
     upperCaseAlphabets: false,
     specialChars: false,
   });
- 
+
   // Render EJS Template
   const templatePath: string = path.resolve(
     __dirname,
@@ -242,9 +242,7 @@ export const getUser = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "User does not exist" });
     }
 
-    return res
-      .status(200)
-      .json({ profilePicture: user.profilePicture, userName: user.userName });
+    return res.json({ user });
   } catch (error) {
     console.error(error);
     return res.status(500).json({ message: "Internal server error" });
@@ -253,7 +251,6 @@ export const getUser = async (req: Request, res: Response) => {
 
 export const resetPassword = async (req: Request, res: Response) => {
   const { password, email } = req.body;
-  console.log(password, email);
 
   try {
     const user: UserDocument | null = await User.findOne({ email: email });
