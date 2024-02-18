@@ -1,14 +1,29 @@
 import bcrypt from "bcrypt";
+import { v2 as cloudinary } from "cloudinary";
 import ejs from "ejs";
 import { Request, Response } from "express";
+import jwt, { JwtPayload } from "jsonwebtoken";
+import { Types } from "mongoose";
+import nodemailer from "nodemailer";
+import SMTPTransport from "nodemailer/lib/smtp-transport";
 import otpGenerator from "otp-generator";
 import path from "path";
-import OTP, { OTPDocument } from "../models/otpModel";
-import User, { UserDocument } from "../models/userModel";
-import { setToken } from "../service/auth";
-import cloudinary from "../utils/cloudinary";
-import transporter from "../utils/sendMailUtils";
-import UserData, { UserDataDocument } from "../models/userDataModel";
+import {
+  OTP,
+  OTPDocument,
+  Transaction,
+  TransactionDocument,
+  User,
+  UserData,
+  UserDataDocument,
+  UserDocument,
+} from "../models/models";
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET_KEY,
+});
 
 // POST : /user/register
 export const registerUser = async (req: Request, res: Response) => {
@@ -73,9 +88,19 @@ export const loginUser = async (req: Request, res: Response) => {
     if (!passwordMatch) {
       return res.status(401).json({ message: "Incorrect Password" });
     }
-    const token = setToken(user);
 
-    res.status(200).json({ token, message: "Login Successfully" });
+    const token = jwt.sign(
+      {
+        email: user.email,
+        userName: user.userName,
+      },
+      String(process.env.SECRET_KEY),
+      {
+        expiresIn: "7d",
+      }
+    );
+
+    res.status(200).json({ token: token, message: "Login Successfully" });
   } catch (error) {
     console.error(error);
     return res.status(500).json({ error: "Internal server error" });
@@ -113,6 +138,19 @@ export const sendMail = async (req: Request, res: Response) => {
     subject: "OTP Verification",
     html: htmlContent,
   };
+
+  // Configure Transporter
+  const transporter: nodemailer.Transporter<SMTPTransport.SentMessageInfo> =
+    nodemailer.createTransport({
+      service: "gmail",
+      host: String(process.env.SMTP_HOST),
+      port: Number(process.env.SMTP_PORT),
+      secure: true,
+      auth: {
+        user: process.env.USER,
+        pass: process.env.PASS,
+      },
+    });
 
   // Send Mail Via Transporter
   try {
@@ -200,6 +238,19 @@ export const sendVerifyEmail = async (req: Request, res: Response) => {
     html: htmlContent,
   };
 
+  // Configure Transporter
+  const transporter: nodemailer.Transporter<SMTPTransport.SentMessageInfo> =
+    nodemailer.createTransport({
+      service: "gmail",
+      host: String(process.env.SMTP_HOST),
+      port: Number(process.env.SMTP_PORT),
+      secure: true,
+      auth: {
+        user: process.env.USER,
+        pass: process.env.PASS,
+      },
+    });
+
   // Send Mail Via Transporter
   try {
     await transporter.sendMail(mailOptions);
@@ -230,14 +281,23 @@ export const sendVerifyEmail = async (req: Request, res: Response) => {
   }
 };
 
+// POST: /user/getUser
 export const getUser = async (req: Request, res: Response) => {
-  const { email } = req.body;
+  const { token } = req.body;
+
+  const decodedToken: string | JwtPayload | null = jwt.verify(
+    token,
+    String(process.env.SECRET_KEY)
+  );
+  if (!decodedToken || typeof decodedToken === "string") {
+    return res.status(401).send("Invalid token");
+  }
+
+  const email: string = decodedToken.email;
 
   try {
     const user: UserDocument | null = await User.findOne(
-      {
-        $or: [{ email: email }, { userName: email }],
-      },
+      { email },
       { password: 0 }
     );
 
@@ -252,6 +312,7 @@ export const getUser = async (req: Request, res: Response) => {
   }
 };
 
+// POST: /user/resetPassword
 export const resetPassword = async (req: Request, res: Response) => {
   const { password, email } = req.body;
 
@@ -270,4 +331,73 @@ export const resetPassword = async (req: Request, res: Response) => {
     console.error(error);
     return res.status(500).json({ message: "Internal server error" });
   }
+};
+
+// POST: /transaction/add
+export const addTransaction = async (req: Request, res: Response) => {
+  const { incomeFlag, email, amount, category, title, notes, transactionDate } =
+    req.body;
+  const invoice = req.file?.path;
+
+  const user: UserDocument | null = await User.findOne({ email });
+  if (!user) {
+    return res.status(401).json({ message: "User not Found" });
+  }
+
+  let invoiceUrl: string = "";
+  let publicId: string = "";
+
+  if (invoice) {
+    const result = await cloudinary.uploader.upload(invoice, {
+      folder: "invoices",
+    });
+
+    invoiceUrl = result.secure_url;
+    publicId = result.public_id;
+  }
+
+  try {
+    const transactionObject = {
+      transactionAmount: String(amount),
+      category: String(category),
+      transactionTitle: String(title),
+      notes: String(notes),
+      invoiceUrl,
+      publicId,
+      transactionDate: String(transactionDate),
+      type: incomeFlag,
+      createdBy: new Types.ObjectId(user._id),
+    };
+
+    const transactionDocument: TransactionDocument = await Transaction.create(
+      transactionObject
+    );
+
+    const transactionId = new Types.ObjectId(transactionDocument._id);
+    if (incomeFlag === "income") {
+      user.incomes.push(transactionId);
+    } else if (incomeFlag === "expense") {
+      user.expenses.push(transactionId);
+    }
+    await user.save();
+
+    return res.sendStatus(200);
+  } catch (error) {
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+// POST: /transaction/getAll
+export const getAllTransactions = async (req: Request, res: Response) => {
+  const { email } = req.body;
+
+  const user: UserDocument | null = await User.findOne({ email });
+
+  if (!user) {
+    return res.status(401).json({ message: "User not Found" });
+  }
+
+  const transactions = await Transaction.find({ createdBy: user._id });
+
+  return res.status(200).json({ transactions });
 };
