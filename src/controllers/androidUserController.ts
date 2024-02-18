@@ -242,10 +242,10 @@ export const getUser = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "User does not exist" });
     }
 
-    return res.json({ user });
+    return res.status(200).json({ user });
   } catch (error) {
     console.error(error);
-    return res.sendStatus(500);
+    return res.status(500).json({ message: "Internal server error" });
   }
 };
 
