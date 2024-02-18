@@ -31,13 +31,9 @@ export const registerUser = async (req: Request, res: Response) => {
     const { userDataId } = req.body;
     const profilePicture: string | undefined = req.file?.path;
 
-    const userData: UserDataDocument | null = await UserData.findOne(
-      { _id: userDataId },
-      {
-        _id: 0,
-        __v: 0,
-      }
-    );
+    const userData: UserDataDocument | null = await UserData.findOne({
+      _id: userDataId,
+    });
 
     if (!userData) {
       return res.status(401).json({ message: "User Data Expired" });
@@ -82,16 +78,7 @@ export const loginUser = async (req: Request, res: Response) => {
 
   try {
     const user: UserDocument | null = await User.findOne({
-      $or: [
-        { email: userNameOrEmail },
-        { userName: userNameOrEmail },
-        {
-          _id: 0,
-          profilePicture: 0,
-          publicId: 0,
-          __v: 0,
-        },
-      ],
+      $or: [{ email: userNameOrEmail }, { userName: userNameOrEmail }],
     });
 
     // Check if User Exist or not
@@ -132,9 +119,7 @@ export const sendMail = async (req: Request, res: Response) => {
   const user: UserDocument | null = await User.findOne(
     { email },
     {
-      _id: 0,
       password: 0,
-      __v: 0,
     }
   );
   // Check for User Existence
@@ -205,13 +190,7 @@ export const verifyOtp = async (req: Request, res: Response) => {
 
   try {
     // Find the OTP document in the database by its ID
-    const otp: OTPDocument | null = await OTP.findById(
-      { otpId },
-      {
-        _id: 0,
-        __v: 0,
-      }
-    );
+    const otp: OTPDocument | null = await OTP.findById({ otpId });
 
     // Check if the OTP document exists
     if (!otp) {
@@ -242,9 +221,7 @@ export const sendVerifyEmail = async (req: Request, res: Response) => {
       { email: email },
       { userName: userName },
       {
-        _id: 0,
         password: 0,
-        __v: 0,
       },
     ],
   });
@@ -338,8 +315,7 @@ export const getUser = async (req: Request, res: Response) => {
     const user: UserDocument | null = await User.findOne(
       { email },
       {
-        _id: 0,
-        __v: 0,
+        password: 0,
       }
     );
 
@@ -347,7 +323,15 @@ export const getUser = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "User does not exist" });
     }
 
-    return res.status(200).json({ user });
+    const { userName, profilePicture } = user;
+
+    const userObject = {
+      email: user.email,
+      userName,
+      profilePicture,
+    };
+
+    return res.status(200).json({ userObject });
   } catch (error) {
     console.error(error);
     return res.status(500).json({ message: "Internal server error" });
@@ -362,9 +346,7 @@ export const resetPassword = async (req: Request, res: Response) => {
     const user: UserDocument | null = await User.findOne(
       { email: email },
       {
-        _id: 0,
-        userName: 0,
-        __v: 0,
+        password: 0,
       }
     );
 
@@ -391,11 +373,7 @@ export const addTransaction = async (req: Request, res: Response) => {
   const user: UserDocument | null = await User.findOne(
     { email },
     {
-      userName: 0,
       password: 0,
-      profilePicture: 0,
-      publicId: 0,
-      __v: 0,
     }
   );
   if (!user) {
@@ -453,9 +431,7 @@ export const getAllTransactions = async (req: Request, res: Response) => {
     const user: UserDocument | null = await User.findOne(
       { email },
       {
-        userName: 0,
         password: 0,
-        __v: 0,
       }
     );
 
