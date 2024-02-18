@@ -116,12 +116,7 @@ export const loginUser = async (req: Request, res: Response) => {
 export const sendMail = async (req: Request, res: Response) => {
   const { email } = req.body;
 
-  const user: UserDocument | null = await User.findOne(
-    { email },
-    {
-      password: 0,
-    }
-  );
+  const user: UserDocument | null = await User.findOne({ email });
   // Check for User Existence
   if (!user) {
     return res.status(401).json({ message: "You need to Register First" });
@@ -217,13 +212,7 @@ export const sendVerifyEmail = async (req: Request, res: Response) => {
   const { email, userName, password, selectedImage } = req.body;
 
   const user: UserDocument | null = await User.findOne({
-    $or: [
-      { email: email },
-      { userName: userName },
-      {
-        password: 0,
-      },
-    ],
+    $or: [{ email: email }, { userName: userName }],
   });
   if (user?.email === email) {
     res.status(401).json({ message: "Email should be unique" });
@@ -425,7 +414,17 @@ export const addTransaction = async (req: Request, res: Response) => {
 
 // POST: /transaction/getAll
 export const getAllTransactions = async (req: Request, res: Response) => {
-  const { email } = req.body;
+  const { token } = req.body;
+
+  const decodedToken: string | JwtPayload | null = jwt.verify(
+    token,
+    String(process.env.SECRET_KEY)
+  );
+  if (!decodedToken || typeof decodedToken === "string") {
+    return res.status(401).send("Invalid token");
+  }
+
+  const email: string = decodedToken.email;
 
   try {
     const user: UserDocument | null = await User.findOne(

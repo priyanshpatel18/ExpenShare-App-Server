@@ -1,6 +1,8 @@
 import bcrypt from "bcrypt";
 import { Document, Schema, Types, model } from "mongoose";
 
+
+
 export interface UserDocument extends Document {
   _id: string;
   userName: string;
@@ -10,6 +12,8 @@ export interface UserDocument extends Document {
   publicId: string;
   expenses: [Types.ObjectId];
   incomes: [Types.ObjectId];
+  totalBalance: number,
+ 
 }
 
 export interface UserDataDocument extends Document {
