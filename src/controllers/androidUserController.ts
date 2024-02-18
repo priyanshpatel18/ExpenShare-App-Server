@@ -234,9 +234,12 @@ export const getUser = async (req: Request, res: Response) => {
   const { email } = req.body;
 
   try {
-    const user: UserDocument | null = await User.findOne({
-      $or: [{ email: email }, { userName: email }],
-    });
+    const user: UserDocument | null = await User.findOne(
+      {
+        $or: [{ email: email }, { userName: email }],
+      },
+      { password: 0 }
+    );
 
     if (!user) {
       return res.status(404).json({ message: "User does not exist" });
