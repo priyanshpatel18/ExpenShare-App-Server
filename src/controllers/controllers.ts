@@ -366,9 +366,19 @@ export const resetPassword = async (req: Request, res: Response) => {
 
 // POST: /transaction/add
 export const addTransaction = async (req: Request, res: Response) => {
-  const { incomeFlag, email, amount, category, title, notes, transactionDate } =
+  const { incomeFlag, token, amount, category, title, notes, transactionDate } =
     req.body;
   const invoice: string | undefined = req.file?.path;
+
+  const decodedToken: string | JwtPayload | null = jwt.verify(
+    token,
+    String(process.env.SECRET_KEY)
+  );
+  if (!decodedToken || typeof decodedToken === "string") {
+    return res.status(401).send("Invalid token");
+  }
+
+  const email: string = decodedToken.email;
 
   const user: UserDocument | null = await User.findOne(
     { email },
