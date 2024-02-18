@@ -9,6 +9,8 @@ import SMTPTransport from "nodemailer/lib/smtp-transport";
 import otpGenerator from "otp-generator";
 import path from "path";
 import {
+  History,
+  MonthlyHistoryDocument,
   OTP,
   OTPDocument,
   Transaction,
@@ -185,7 +187,7 @@ export const verifyOtp = async (req: Request, res: Response) => {
 
   try {
     // Find the OTP document in the database by its ID
-    const otp: OTPDocument | null = await OTP.findById({ otpId });
+    const otp: OTPDocument | null = await OTP.findById(otpId);
 
     // Check if the OTP document exists
     if (!otp) {
@@ -210,7 +212,7 @@ export const verifyOtp = async (req: Request, res: Response) => {
 // POST : /user/verifyMail
 export const sendVerifyEmail = async (req: Request, res: Response) => {
   const { email, userName, password, selectedImage } = req.body;
-
+  //
   const user: UserDocument | null = await User.findOne({
     $or: [{ email: email }, { userName: userName }],
   });
@@ -312,12 +314,21 @@ export const getUser = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "User does not exist" });
     }
 
-    const { userName, profilePicture } = user;
+    const {
+      userName,
+      profilePicture,
+      totalBalance,
+      totalIncome,
+      totalExpense,
+    } = user;
 
     const userObject = {
       email: user.email,
       userName,
       profilePicture,
+      totalBalance,
+      totalIncome,
+      totalExpense,
     };
 
     return res.status(200).json({ userObject });
@@ -399,10 +410,44 @@ export const addTransaction = async (req: Request, res: Response) => {
     );
 
     const transactionId = new Types.ObjectId(transactionDocument._id);
+
+    const dateForm = new Date(transactionDate);
+
+    const transactionMonth = dateForm.getMonth();
+    const transactionYear = dateForm.getFullYear();
+
+    const monthlyHistory: MonthlyHistoryDocument | null =
+      await History.findOneAndUpdate(
+        {
+          user: user._id,
+          month: transactionMonth,
+          year: transactionYear,
+        },
+        {
+          $inc: {
+            income: incomeFlag === "income" ? Number(amount) : 0,
+            expense: incomeFlag === "expense" ? Number(amount) : 0,
+          },
+        },
+        { upsert: true, new: true }
+      );
+
+    if (monthlyHistory) {
+      monthlyHistory.transactionIds.push(transactionId);
+      monthlyHistory.monthlyBalance =
+        monthlyHistory.income - monthlyHistory.expense;
+      await monthlyHistory.save();
+    }
+
     if (incomeFlag === "income") {
       user.incomes.push(transactionId);
+      user.totalBalance += Number(amount);
+      user.totalIncome += Number(amount);
+      // Add to History
     } else if (incomeFlag === "expense") {
       user.expenses.push(transactionId);
+      user.totalBalance -= Number(amount);
+      user.totalExpense += Number(amount);
     }
     await user.save();
 
