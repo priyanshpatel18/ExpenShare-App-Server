@@ -245,7 +245,7 @@ export const getUser = async (req: Request, res: Response) => {
     return res.json({ user });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ message: "Internal server error" });
+    return res.sendStatus(500);
   }
 };
 
