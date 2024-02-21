@@ -21,7 +21,9 @@ userRouter
   .post("/sendMail", controller.sendMail)
   .post("/sendVerifyEmail", controller.sendVerifyEmail)
   .post("/verifyOtp", controller.verifyOtp)
-  .post("/getUser", controller.getUser);
+  .post("/getUser", controller.getUser)
+  .post("/delete", controller.deleteUser)
+  .post("/update", upload.single("profilePicture"), controller.updateUser);
 
 const transactionRouter: Router = Router();
 

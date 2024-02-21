@@ -27,6 +27,18 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET_KEY,
 });
 
+const decodeEmail = (token: string) => {
+  const decodedToken: string | JwtPayload | null = jwt.verify(
+    token,
+    String(process.env.SECRET_KEY)
+  );
+  if (!decodedToken || typeof decodedToken === "string") {
+    return "Invalid Token";
+  }
+
+  return String(decodedToken.email);
+};
+
 // POST : /user/register
 export const registerUser = async (req: Request, res: Response) => {
   try {
@@ -177,7 +189,7 @@ export const sendMail = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.log(error);
-    res.status(500).send("Internal Server Error");
+    res.status(500).json({ message: "Internal Server Error" });
   }
 };
 
@@ -284,7 +296,7 @@ export const sendVerifyEmail = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.log(error);
-    res.status(500).send("Internal Server Error");
+    res.status(500).json({ message: "Internal Server Error" });
   }
 };
 
@@ -292,15 +304,7 @@ export const sendVerifyEmail = async (req: Request, res: Response) => {
 export const getUser = async (req: Request, res: Response) => {
   const { token } = req.body;
 
-  const decodedToken: string | JwtPayload | null = jwt.verify(
-    token,
-    String(process.env.SECRET_KEY)
-  );
-  if (!decodedToken || typeof decodedToken === "string") {
-    return res.status(401).send("Invalid token");
-  }
-
-  const email: string = decodedToken.email;
+  const email: string = decodeEmail(token);
 
   try {
     const user: UserDocument | null = await User.findOne(
@@ -370,15 +374,7 @@ export const addTransaction = async (req: Request, res: Response) => {
     req.body;
   const invoice: string | undefined = req.file?.path;
 
-  const decodedToken: string | JwtPayload | null = jwt.verify(
-    token,
-    String(process.env.SECRET_KEY)
-  );
-  if (!decodedToken || typeof decodedToken === "string") {
-    return res.status(401).send("Invalid token");
-  }
-
-  const email: string = decodedToken.email;
+  const email: string = decodeEmail(token);
 
   const user: UserDocument | null = await User.findOne(
     { email },
@@ -471,15 +467,7 @@ export const addTransaction = async (req: Request, res: Response) => {
 export const getAllTransactions = async (req: Request, res: Response) => {
   const { token } = req.body;
 
-  const decodedToken: string | JwtPayload | null = jwt.verify(
-    token,
-    String(process.env.SECRET_KEY)
-  );
-  if (!decodedToken || typeof decodedToken === "string") {
-    return res.status(401).send("Invalid token");
-  }
-
-  const email: string = decodedToken.email;
+  const email: string = decodeEmail(token);
 
   try {
     const user: UserDocument | null = await User.findOne(
@@ -498,6 +486,77 @@ export const getAllTransactions = async (req: Request, res: Response) => {
     });
 
     return res.status(200).json({ transactions });
+  } catch (error) {
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+// PUT: /user/update Update User
+export const updateUser = async (req: Request, res: Response) => {
+  const { token, userName } = req.body;
+  const profilePicture = req.file?.path;
+
+  const email: string = decodeEmail(token);
+
+  try {
+    const user: UserDocument | null = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(401).json({ message: "User not found" });
+    }
+
+    if (userName) {
+      user.userName = userName;
+    }
+    if (user.publicId.includes("uploads") && profilePicture) {
+      cloudinary.uploader.destroy(user.publicId, (error) => {
+        if (error) {
+          console.log(error);
+        }
+      });
+    }
+
+    let profileUrl: string = "";
+    let publicId: string = "";
+
+    if (profilePicture && user) {
+      const result: UploadApiResponse = await cloudinary.uploader.upload(
+        profilePicture,
+        {
+          folder: "uploads",
+        }
+      );
+
+      profileUrl = result.secure_url;
+      publicId = result.public_id;
+
+      user.profilePicture = profileUrl;
+      user.publicId = publicId;
+    }
+    await user.save();
+
+    res.status(200).json({ message: "User Updated Successfully", profileUrl });
+  } catch (error: any) {
+    if (error.code === 11000 && error.keyPattern && error.keyPattern.userName) {
+      return res.status(401).json({ message: "Username should be unique" });
+    }
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+export const deleteUser = async (req: Request, res: Response) => {
+  const { token } = req.body;
+
+  const email: string = decodeEmail(token);
+
+  try {
+    const deletedUser = await User.findOneAndDelete({ email });
+
+    if (!deletedUser) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    res.status(200).json({ message: "User deleted successfully" });
   } catch (error) {
     return res.status(500).json({ message: "Internal Server Error" });
   }
