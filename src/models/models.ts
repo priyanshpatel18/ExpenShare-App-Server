@@ -1,6 +1,7 @@
 import bcrypt from "bcrypt";
 import { Document, Schema, Types, model } from "mongoose";
 
+// -----------USER-----------
 export interface UserDocument extends Document {
   _id: string;
   userName: string;
@@ -13,45 +14,6 @@ export interface UserDocument extends Document {
   totalBalance: number;
   totalIncome: number;
   totalExpense: number;
-}
-
-export interface UserDataDocument extends Document {
-  _id: string;
-  email: string;
-  userName: string;
-  password: string;
-  profilePicture: string;
-  createdAt: Date;
-}
-
-export interface OTPDocument extends Document {
-  otp: string;
-  email: string;
-  createdAt: Date;
-}
-
-export interface TransactionDocument extends Document {
-  _id: string;
-  transactionAmount: string;
-  category: string;
-  transactionTitle: string;
-  notes: string;
-  invoiceUrl: string;
-  publicId: string;
-  transactionDate: string;
-  type: string;
-  createdBy: Types.ObjectId;
-}
-
-export interface MonthlyHistoryDocument extends Document {
-  _id: string;
-  user: Types.ObjectId;
-  month: string;
-  year: string;
-  transactionIds: [Types.ObjectId];
-  monthlyBalance: number;
-  income: number;
-  expense: number;
 }
 
 const userSchema = new Schema<UserDocument>({
@@ -120,6 +82,16 @@ userSchema.pre<UserDocument>("save", async function (next) {
 
 export const User = model("User", userSchema);
 
+// -----------USERDATA-----------
+export interface UserDataDocument extends Document {
+  _id: string;
+  email: string;
+  userName: string;
+  password: string;
+  profilePicture: string;
+  createdAt: Date;
+}
+
 const dataSchema = new Schema<UserDataDocument>({
   userName: {
     type: String,
@@ -145,6 +117,14 @@ const dataSchema = new Schema<UserDataDocument>({
 
 export const UserData = model<UserDataDocument>("UserData", dataSchema);
 
+// -----------OTP-----------
+export interface OTPDocument extends Document {
+  _id: string;
+  otp: string;
+  email: string;
+  createdAt: Date;
+}
+
 const otpSchema = new Schema<OTPDocument>({
   otp: {
     type: String,
@@ -162,6 +142,20 @@ const otpSchema = new Schema<OTPDocument>({
 });
 
 export const OTP = model<OTPDocument>("OTP", otpSchema);
+
+// -----------TRANSACTION-----------
+export interface TransactionDocument extends Document {
+  _id: string;
+  transactionAmount: string;
+  category: string;
+  transactionTitle: string;
+  notes: string;
+  invoiceUrl: string;
+  publicId: string;
+  transactionDate: string;
+  type: string;
+  createdBy: Types.ObjectId;
+}
 
 const transactionSchema = new Schema<TransactionDocument>({
   transactionAmount: {
@@ -205,6 +199,18 @@ export const Transaction = model<TransactionDocument>(
   transactionSchema
 );
 
+// -----------HISTORY-----------
+export interface MonthlyHistoryDocument extends Document {
+  _id: string;
+  user: Types.ObjectId;
+  month: string;
+  year: string;
+  transactionIds: [Types.ObjectId];
+  monthlyBalance: number;
+  income: number;
+  expense: number;
+}
+
 const monthlyHistorySchema = new Schema<MonthlyHistoryDocument>({
   user: {
     type: Schema.Types.ObjectId,
@@ -241,3 +247,94 @@ const monthlyHistorySchema = new Schema<MonthlyHistoryDocument>({
 });
 
 export const History = model("History", monthlyHistorySchema);
+
+// -----------GROUP-TRANSACTION-----------
+
+export interface GroupTransactionDocument extends Document {
+  _id: string;
+  groupId: Types.ObjectId;
+  paidBy: Types.ObjectId;
+  splitAmong: [Types.ObjectId];
+  category: string;
+  transactionTitle: string;
+  notes: string;
+  invoiceUrl: string;
+  publicId: string;
+  transactionDate: string;
+}
+
+const groupTransactionSchema = new Schema<GroupTransactionDocument>({
+  groupId: {
+    type: Schema.Types.ObjectId,
+    ref: "Group",
+    required: true,
+  },
+  paidBy: {
+    type: Schema.Types.ObjectId,
+    ref: "User",
+    required: true,
+  },
+  splitAmong: {
+    type: [Schema.Types.ObjectId],
+    ref: "User",
+    required: true,
+  },
+  category: {
+    type: String,
+    required: true,
+  },
+  transactionTitle: {
+    type: String,
+    required: true,
+  },
+  notes: {
+    type: String,
+  },
+  invoiceUrl: {
+    type: String,
+  },
+  publicId: {
+    type: String,
+  },
+  transactionDate: {
+    type: String,
+    required: true,
+  },
+});
+
+export const GroupTransaction = model(
+  "GroupTransaction",
+  groupTransactionSchema
+);
+
+const groupSchema = new Schema({
+  groupName: {
+    type: String,
+    required: true,
+  },
+  groupProfile: {
+    type: String,
+  },
+  createdBy: {
+    type: Schema.Types.ObjectId,
+    ref: "User",
+    required: true,
+  },
+  members: {
+    type: [Schema.Types.ObjectId],
+    ref: "User",
+    default: [],
+  },
+  groupExpense: {
+    type: [Schema.Types.ObjectId],
+    ref: "GroupTransaction",
+    default: [],
+  },
+  totalExpense: {
+    type: Number,
+    required: true,
+    default: 0,
+  },
+});
+
+export const Group = model("Group", groupSchema);

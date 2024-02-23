@@ -28,10 +28,11 @@ cloudinary.config({
 });
 
 const decodeEmail = (token: string) => {
-  const decodedToken: string | JwtPayload | null = jwt.verify(
+  const decodedToken: string | JwtPayload = jwt.verify(
     token,
     String(process.env.SECRET_KEY)
   );
+
   if (!decodedToken || typeof decodedToken === "string") {
     return "Invalid Token";
   }
@@ -76,9 +77,17 @@ export const registerUser = async (req: Request, res: Response) => {
     });
 
     await UserData.deleteOne({ userDataId });
+
+    const token: string = jwt.sign(
+      {
+        email: userData.email,
+      },
+      String(process.env.SECRET_KEY)
+    );
+
     res.status(200).json({
       message: "Account Registered Successfully",
-      email: userData.email,
+      token,
     });
   } catch (error) {
     console.log(error);
@@ -111,15 +120,11 @@ export const loginUser = async (req: Request, res: Response) => {
     const token: string = jwt.sign(
       {
         email: user.email,
-        userName: user.userName,
       },
-      String(process.env.SECRET_KEY),
-      {
-        expiresIn: "7d",
-      }
+      String(process.env.SECRET_KEY)
     );
 
-    res.status(200).json({ token: token, message: "Login Successfully" });
+    res.status(200).json({ token, message: "Login Successfully" });
   } catch (error) {
     console.error(error);
     return res.status(500).json({ error: "Internal server error" });
@@ -315,7 +320,7 @@ export const getUser = async (req: Request, res: Response) => {
     );
 
     if (!user) {
-      return res.status(404).json({ message: "User does not exist" });
+      return res.status(404).json({ message: "User not verified" });
     }
 
     const {
@@ -560,4 +565,61 @@ export const deleteUser = async (req: Request, res: Response) => {
   } catch (error) {
     return res.status(500).json({ message: "Internal Server Error" });
   }
+};
+
+interface allUserObject {
+  userName: string;
+  email: string;
+  profilePicture: string;
+}
+
+export const getAllUsers = async (req: Request, res: Response) => {
+  const { token } = req.body;
+
+  const email: string = decodeEmail(token);
+
+  try {
+    const user: UserDocument | null = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(401).json({ message: "User Not Found" });
+    }
+
+    const allUsers: UserDocument[] | null = await User.find({
+      email: { $ne: user.email },
+    });
+
+    const userObject: allUserObject[] = [];
+
+    if (allUsers) {
+      allUsers.forEach((user) => {
+        // Construct userObject
+        const userData: allUserObject = {
+          userName: user.userName,
+          email: user.email,
+          profilePicture: user.profilePicture,
+        };
+        // Push userData into userObject array
+        userObject.push(userData);
+      });
+    }
+
+    res.status(200).json({ users: userObject });
+  } catch (error) {
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+export const createGroup = async (req: Request, res: Response) => {
+  const { groupProfile, groupName, token } = req.body;
+
+  const email: string = decodeEmail(token);
+
+  const user: UserDocument | null = await User.findOne({ email });
+
+  if (!user) {
+    return res.status(401).json({ message: "User Not Found" });
+  }
+
+  
 };

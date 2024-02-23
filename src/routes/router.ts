@@ -15,6 +15,7 @@ const upload: multer.Multer = multer({ storage: storage });
 const userRouter: Router = Router();
 
 userRouter
+  .post("/getAllUsers", controller.getAllUsers)
   .post("/resetPassword", controller.resetPassword)
   .post("/register", upload.single("profilePicture"), controller.registerUser)
   .post("/login", controller.loginUser)
