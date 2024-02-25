@@ -30,6 +30,15 @@ const transactionRouter: Router = Router();
 
 transactionRouter
   .post("/add", upload.single("invoice"), controller.addTransaction)
-  .post("/getAll", controller.getAllTransactions);
+  .post("/getAll", controller.getAllTransactions)
+  .post("/delete", controller.deleteTransaction);
 
-export { transactionRouter, userRouter };
+const groupRouter: Router = Router();
+
+groupRouter.post(
+  "/create",
+  upload.single("groupProfile"),
+  controller.createGroup
+);
+
+export { transactionRouter, userRouter, groupRouter };

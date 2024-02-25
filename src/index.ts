@@ -3,19 +3,52 @@ import cookieParser from "cookie-parser";
 import cors from "cors";
 import "dotenv/config";
 import express, { Express } from "express";
+import { createServer } from "http";
 import { MongoClient } from "mongodb";
 import mongoose from "mongoose";
 import cron from "node-cron";
 import path from "path";
+import { Server } from "socket.io";
 // File Imports
-import { transactionRouter, userRouter } from "./routes/router";
+import { groupRouter, transactionRouter, userRouter } from "./routes/router";
+import { User, UserDocument } from "./models/models";
 
 // Creating Backend Application
 const app: Express = express();
+// Create a HTTP Server
+const server = createServer(app);
+// Create an IO Server
+const io = new Server(server);
+// Socket Connection
+io.on("connection", (socket) => {
+  console.log("User", socket.id);
+
+  socket.on("getUsers", async (filter) => {
+    try {
+      // Filter users based on userName or email
+      const users: UserDocument[] | null = await User.find({
+        $or: [
+          { userName: { $regex: filter, $options: "i" } },
+          { email: { $regex: filter, $options: "i" } },
+        ],
+      });
+
+      // Emit the filtered users
+      socket.emit("filteredUsers", users);
+    } catch (error) {
+      console.error("Error filtering users:", error);
+    }
+  });
+
+  socket.on("disconnect", () => {
+    socket.disconnect();
+    console.log("Socket disconnected", socket.id);
+  });
+});
 
 // Middlewares
 app.use(cors());
-app.use(cookieParser())
+app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.set("view-engine", "ejs");
@@ -24,6 +57,7 @@ app.set("views", path.resolve("./views"));
 // Routes
 app.use("/user", userRouter);
 app.use("/transaction", transactionRouter);
+app.use("/group", groupRouter);
 
 // OTP Cleanup
 cron.schedule(
@@ -58,7 +92,7 @@ mongoose
   .connect(DB_URL)
   .then(() => {
     console.log("Database Connected");
-    app.listen(PORT, () => {
+    server.listen(PORT, () => {
       console.log("Server Started");
     });
   })

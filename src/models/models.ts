@@ -1,7 +1,7 @@
 import bcrypt from "bcrypt";
 import { Document, Schema, Types, model } from "mongoose";
 
-// -----------USER-----------
+// -----------USER----------- //
 export interface UserDocument extends Document {
   _id: string;
   userName: string;
@@ -9,8 +9,8 @@ export interface UserDocument extends Document {
   password: string;
   profilePicture: string;
   publicId: string;
-  expenses: [Types.ObjectId];
-  incomes: [Types.ObjectId];
+  expenses: Types.ObjectId[];
+  incomes: Types.ObjectId[];
   totalBalance: number;
   totalIncome: number;
   totalExpense: number;
@@ -82,7 +82,7 @@ userSchema.pre<UserDocument>("save", async function (next) {
 
 export const User = model("User", userSchema);
 
-// -----------USERDATA-----------
+// -----------USERDATA----------- //
 export interface UserDataDocument extends Document {
   _id: string;
   email: string;
@@ -117,7 +117,7 @@ const dataSchema = new Schema<UserDataDocument>({
 
 export const UserData = model<UserDataDocument>("UserData", dataSchema);
 
-// -----------OTP-----------
+// -----------OTP----------- //
 export interface OTPDocument extends Document {
   _id: string;
   otp: string;
@@ -143,7 +143,7 @@ const otpSchema = new Schema<OTPDocument>({
 
 export const OTP = model<OTPDocument>("OTP", otpSchema);
 
-// -----------TRANSACTION-----------
+// -----------TRANSACTION----------- //
 export interface TransactionDocument extends Document {
   _id: string;
   transactionAmount: string;
@@ -199,13 +199,13 @@ export const Transaction = model<TransactionDocument>(
   transactionSchema
 );
 
-// -----------HISTORY-----------
+// -----------HISTORY----------- //
 export interface MonthlyHistoryDocument extends Document {
   _id: string;
   user: Types.ObjectId;
   month: string;
   year: string;
-  transactionIds: [Types.ObjectId];
+  transactionIds: Types.ObjectId[];
   monthlyBalance: number;
   income: number;
   expense: number;
@@ -248,13 +248,12 @@ const monthlyHistorySchema = new Schema<MonthlyHistoryDocument>({
 
 export const History = model("History", monthlyHistorySchema);
 
-// -----------GROUP-TRANSACTION-----------
-
+// -----------GROUP-TRANSACTION----------- //
 export interface GroupTransactionDocument extends Document {
   _id: string;
   groupId: Types.ObjectId;
   paidBy: Types.ObjectId;
-  splitAmong: [Types.ObjectId];
+  splitAmong: Types.ObjectId[];
   category: string;
   transactionTitle: string;
   notes: string;
@@ -307,12 +306,26 @@ export const GroupTransaction = model(
   groupTransactionSchema
 );
 
-const groupSchema = new Schema({
+interface GroupDocument extends Document {
+  groupName: string;
+  groupProfile: string;
+  publicId: string;
+  createdBy: Types.ObjectId;
+  members: Types.ObjectId[];
+  groupExpense: Types.ObjectId[];
+  totalExpense: number;
+  category: string;
+}
+
+const groupSchema = new Schema<GroupDocument>({
   groupName: {
     type: String,
     required: true,
   },
   groupProfile: {
+    type: String,
+  },
+  publicId: {
     type: String,
   },
   createdBy: {
@@ -335,6 +348,10 @@ const groupSchema = new Schema({
     required: true,
     default: 0,
   },
+  category: {
+    type: String,
+    default: "NONE",
+  },
 });
 
-export const Group = model("Group", groupSchema);
+export const Group = model<GroupDocument>("Group", groupSchema);

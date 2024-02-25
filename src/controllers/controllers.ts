@@ -98,7 +98,6 @@ export const registerUser = async (req: Request, res: Response) => {
 // POST : /user/login
 export const loginUser = async (req: Request, res: Response) => {
   const { userNameOrEmail, password } = req.body;
-
   try {
     const user: UserDocument | null = await User.findOne({
       $or: [{ email: userNameOrEmail }, { userName: userNameOrEmail }],
@@ -496,6 +495,82 @@ export const getAllTransactions = async (req: Request, res: Response) => {
   }
 };
 
+export const deleteTransaction = async (req: Request, res: Response) => {
+  const { token, transactionId, transactionAmount } = req.body;
+
+  const email: string = decodeEmail(token);
+
+  try {
+    const user: UserDocument | null = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(401).json({ message: "User not found" });
+    }
+
+    const transactionFound =
+      user.expenses.includes(transactionId) ||
+      user.incomes.includes(transactionId);
+
+    if (!transactionFound) {
+      return res.status(401).json({ message: "Transaction not found" });
+    }
+
+    const transactionObjectId = new Types.ObjectId(transactionId);
+    const amount = Number(transactionAmount);
+
+    const HistoryDocument = await History.findOne({
+      transactionIds: transactionObjectId,
+    });
+
+    if (!HistoryDocument) {
+      return res.status(401).json({ message: "Error finding the History" });
+    }
+
+    //Update History Transactions
+    HistoryDocument.transactionIds = HistoryDocument.transactionIds.filter(
+      (id) => id.toHexString() !== transactionObjectId.toHexString()
+    );
+
+    if (user.expenses.includes(transactionId)) {
+      // Update User Expense
+      user.expenses = user.expenses.filter(
+        (id) => id.toHexString() !== transactionObjectId.toHexString()
+      );
+      user.totalBalance += amount;
+      user.totalExpense -= amount;
+      // Update History Expense
+      HistoryDocument.monthlyBalance += amount;
+      HistoryDocument.expense -= amount;
+    }
+
+    if (user.incomes.includes(transactionId)) {
+      // Update User Incomes
+      user.incomes = user.incomes.filter(
+        (id) => id.toHexString() !== transactionObjectId.toHexString()
+      );
+      user.totalBalance -= amount;
+      user.totalIncome -= amount;
+      //Update History Incomes
+      HistoryDocument.monthlyBalance -= amount;
+      HistoryDocument.income -= amount;
+    }
+
+    await Transaction.findOneAndDelete({
+      _id: transactionId,
+    });
+    await user.save();
+    if (HistoryDocument.transactionIds.length === 0) {
+      await History.findOneAndDelete({ _id: HistoryDocument._id });
+    } else {
+      await HistoryDocument.save();
+    }
+
+    res.status(200).json({ message: "Transaction deleted Successfully" });
+  } catch (error) {
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
 // PUT: /user/update Update User
 export const updateUser = async (req: Request, res: Response) => {
   const { token, userName } = req.body;
@@ -611,7 +686,8 @@ export const getAllUsers = async (req: Request, res: Response) => {
 };
 
 export const createGroup = async (req: Request, res: Response) => {
-  const { groupProfile, groupName, token } = req.body;
+  const { groupName, category, token } = req.body;
+  const groupProfile = req.file?.path;
 
   const email: string = decodeEmail(token);
 
@@ -621,5 +697,30 @@ export const createGroup = async (req: Request, res: Response) => {
     return res.status(401).json({ message: "User Not Found" });
   }
 
-  
+  let profileUrl: string = "";
+  let publicId: string = "";
+
+  // if (groupProfile) {
+  //   const result: UploadApiResponse = await cloudinary.uploader.upload(
+  //     groupProfile,
+  //     {
+  //       folder: "uploads",
+  //     }
+  //   );
+  //   profileUrl = result.secure_url;
+  //   publicId = result.public_id;
+  // }
+
+  const newGroup = {
+    groupName,
+    groupProfile: groupProfile ? profileUrl : "",
+    publicId,
+    createdBy: new Types.ObjectId(user._id),
+    members: [],
+    groupExpense: [],
+    totalExpense: 0,
+    category: category,
+  };
+
+  return res.status(200).json({ message: "Created Successfully" });
 };
