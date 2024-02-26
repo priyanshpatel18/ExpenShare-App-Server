@@ -24,7 +24,8 @@ userRouter
   .post("/verifyOtp", controller.verifyOtp)
   .post("/getUser", controller.getUser)
   .post("/delete", controller.deleteUser)
-  .post("/update", upload.single("profilePicture"), controller.updateUser);
+  .post("/update", upload.single("profilePicture"), controller.updateUser)
+  .post("/getRequests", controller.getAllNotifications);
 
 const transactionRouter: Router = Router();
 
@@ -35,10 +36,8 @@ transactionRouter
 
 const groupRouter: Router = Router();
 
-groupRouter.post(
-  "/create",
-  upload.single("groupProfile"),
-  controller.createGroup
-);
+groupRouter
+  .post("/create", upload.single("groupProfile"), controller.createGroup)
+  .post("/getAll", controller.getAllGroups);
 
 export { transactionRouter, userRouter, groupRouter };

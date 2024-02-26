@@ -10,34 +10,45 @@ import cron from "node-cron";
 import path from "path";
 import { Server } from "socket.io";
 // File Imports
+import * as socketController from "./controllers/socketController";
 import { groupRouter, transactionRouter, userRouter } from "./routes/router";
-import { User, UserDocument } from "./models/models";
 
 // Creating Backend Application
 const app: Express = express();
 // Create a HTTP Server
 const server = createServer(app);
 // Create an IO Server
-const io = new Server(server);
+export const io = new Server(server);
 // Socket Connection
+
+// Create an interface to define the email-to-socket mapping
+interface EmailToSocketMap {
+  [email: string]: string;
+}
+
+// Create an empty object to store the mapping between email and socket ID
+export const emailToSocketMap: EmailToSocketMap = {};
+
 io.on("connection", (socket) => {
   console.log("User", socket.id);
 
-  socket.on("getUsers", async (filter) => {
-    try {
-      // Filter users based on userName or email
-      const users: UserDocument[] | null = await User.find({
-        $or: [
-          { userName: { $regex: filter, $options: "i" } },
-          { email: { $regex: filter, $options: "i" } },
-        ],
-      });
-
-      // Emit the filtered users
-      socket.emit("filteredUsers", users);
-    } catch (error) {
-      console.error("Error filtering users:", error);
+  // Bind email to the socketId
+  socket.on("login", (email) => {
+    if (email) {
+      emailToSocketMap[email] = socket.id;
+      console.log(emailToSocketMap);
+    } else {
+      console.log("Invalid email:", email);
     }
+  });
+
+  // Filter Users
+  socket.on("getUsers", (filter: string) => {
+    socketController.handleGetUsers(socket, filter);
+  });
+  // Sends Request
+  socket.on("sendRequest", (data) => {
+    socketController.handleSendRequest(socket, data);
   });
 
   socket.on("disconnect", () => {

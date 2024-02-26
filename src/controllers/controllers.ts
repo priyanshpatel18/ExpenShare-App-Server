@@ -9,6 +9,9 @@ import SMTPTransport from "nodemailer/lib/smtp-transport";
 import otpGenerator from "otp-generator";
 import path from "path";
 import {
+  Group,
+  GroupDocument,
+  GroupRequest,
   History,
   MonthlyHistoryDocument,
   OTP,
@@ -27,7 +30,7 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET_KEY,
 });
 
-const decodeEmail = (token: string) => {
+export const decodeEmail = (token: string) => {
   const decodedToken: string | JwtPayload = jwt.verify(
     token,
     String(process.env.SECRET_KEY)
@@ -74,6 +77,7 @@ export const registerUser = async (req: Request, res: Response) => {
       profilePicture: profileUrl,
       publicId,
       password: userData.password,
+      groups: [],
     });
 
     await UserData.deleteOne({ userDataId });
@@ -691,36 +695,94 @@ export const createGroup = async (req: Request, res: Response) => {
 
   const email: string = decodeEmail(token);
 
-  const user: UserDocument | null = await User.findOne({ email });
+  try {
+    const user: UserDocument | null = await User.findOne({ email });
 
-  if (!user) {
-    return res.status(401).json({ message: "User Not Found" });
+    if (!user) {
+      return res.status(401).json({ message: "User Not Found" });
+    }
+
+    let profileUrl: string = "";
+    let publicId: string = "";
+
+    if (groupProfile) {
+      const result: UploadApiResponse = await cloudinary.uploader.upload(
+        groupProfile,
+        {
+          folder: "uploads",
+        }
+      );
+      profileUrl = result.secure_url;
+      publicId = result.public_id;
+    }
+
+    const newGroup = {
+      groupName,
+      groupProfile: groupProfile ? profileUrl : "",
+      publicId: publicId.trim() ? publicId : "",
+      createdBy: new Types.ObjectId(user._id),
+      members: [],
+      groupExpense: [],
+      totalExpense: 0,
+      category: category,
+    };
+
+    const GroupDoc: GroupDocument = await Group.create(newGroup);
+
+    user.groups.push(GroupDoc._id);
+    await user.save();
+
+    return res
+      .status(200)
+      .json({ message: "Created Successfully", group: GroupDoc });
+  } catch (error) {
+    res.status(500).json({ message: "Internal Server Error" });
   }
+};
 
-  let profileUrl: string = "";
-  let publicId: string = "";
+export const getAllGroups = async (req: Request, res: Response) => {
+  const { token } = req.body;
 
-  // if (groupProfile) {
-  //   const result: UploadApiResponse = await cloudinary.uploader.upload(
-  //     groupProfile,
-  //     {
-  //       folder: "uploads",
-  //     }
-  //   );
-  //   profileUrl = result.secure_url;
-  //   publicId = result.public_id;
-  // }
+  const email: string = decodeEmail(token);
 
-  const newGroup = {
-    groupName,
-    groupProfile: groupProfile ? profileUrl : "",
-    publicId,
-    createdBy: new Types.ObjectId(user._id),
-    members: [],
-    groupExpense: [],
-    totalExpense: 0,
-    category: category,
-  };
+  try {
+    const user: UserDocument | null = await User.findOne({ email });
 
-  return res.status(200).json({ message: "Created Successfully" });
+    if (!user) {
+      return res.status(401).json({ message: "User Not Found" });
+    }
+
+    const groups: GroupDocument[] | null = await Group.find({
+      _id: { $in: user.groups },
+    });
+
+    res.status(200).json({ groups });
+  } catch (error) {
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+export const getAllNotifications = async (req: Request, res: Response) => {
+  const { token } = req.body;
+
+  const email: string = decodeEmail(token);
+
+  try {
+    const user: UserDocument | null = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(401).json({ message: "User Not Found" });
+    }
+
+    const requests = await GroupRequest.find({ receiver: user._id });
+
+    const notifications = requests.map((request) => ({
+      requestId: request._id,
+      groupName: request.groupName,
+    }));
+
+    res.status(200).json({ notifications });
+  } catch (error) {
+    res.status(500).json({ message: "Internal Server Error" });
+  }
 };

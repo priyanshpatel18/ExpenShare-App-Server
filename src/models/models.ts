@@ -14,6 +14,7 @@ export interface UserDocument extends Document {
   totalBalance: number;
   totalIncome: number;
   totalExpense: number;
+  groups: Types.ObjectId[];
 }
 
 const userSchema = new Schema<UserDocument>({
@@ -61,6 +62,12 @@ const userSchema = new Schema<UserDocument>({
     type: Number,
     required: true,
     default: 0,
+  },
+  groups: {
+    type: [Types.ObjectId],
+    ref: "Group",
+    required: true,
+    default: [],
   },
 });
 
@@ -306,7 +313,7 @@ export const GroupTransaction = model(
   groupTransactionSchema
 );
 
-interface GroupDocument extends Document {
+export interface GroupDocument extends Document {
   groupName: string;
   groupProfile: string;
   publicId: string;
@@ -355,3 +362,30 @@ const groupSchema = new Schema<GroupDocument>({
 });
 
 export const Group = model<GroupDocument>("Group", groupSchema);
+
+const requestSchema = new Schema({
+  sender: {
+    type: Schema.Types.ObjectId,
+    ref: "User",
+  },
+  receiver: {
+    type: Schema.Types.ObjectId,
+    ref: "User",
+  },
+  groupId: {
+    type: Schema.Types.ObjectId,
+    ref: "Group",
+    required: true,
+  },
+  groupName: {
+    type: String,
+    required: true,
+  },
+  status: {
+    type: String,
+    enum: ["PENDING", "ACCEPTED", "REJECTED"],
+    default: "PENDING",
+  },
+});
+
+export const GroupRequest = model("GroupRequest", requestSchema);
