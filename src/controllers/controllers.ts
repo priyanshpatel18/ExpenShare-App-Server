@@ -326,24 +326,7 @@ export const getUser = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "User not verified" });
     }
 
-    const {
-      userName,
-      profilePicture,
-      totalBalance,
-      totalIncome,
-      totalExpense,
-    } = user;
-
-    const userObject = {
-      email: user.email,
-      userName,
-      profilePicture,
-      totalBalance,
-      totalIncome,
-      totalExpense,
-    };
-
-    return res.status(200).json({ userObject });
+    return res.status(200).json({ user });
   } catch (error) {
     console.error(error);
     return res.status(500).json({ message: "Internal server error" });
@@ -721,7 +704,7 @@ export const createGroup = async (req: Request, res: Response) => {
       groupProfile: groupProfile ? profileUrl : "",
       publicId: publicId.trim() ? publicId : "",
       createdBy: new Types.ObjectId(user._id),
-      members: [],
+      members: [new Types.ObjectId(user._id)],
       groupExpense: [],
       totalExpense: 0,
       category: category,
@@ -774,15 +757,62 @@ export const getAllNotifications = async (req: Request, res: Response) => {
       return res.status(401).json({ message: "User Not Found" });
     }
 
-    const requests = await GroupRequest.find({ receiver: user._id });
+    const requests = await GroupRequest.find({
+      receiver: user._id,
+      status: "PENDING",
+    });
 
     const notifications = requests.map((request) => ({
       requestId: request._id,
       groupName: request.groupName,
+      groupId: request.groupId,
     }));
 
     res.status(200).json({ notifications });
   } catch (error) {
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+export const handleRequest = async (req: Request, res: Response) => {
+  const { token, requestId, type } = req.body;
+
+  const email: string = decodeEmail(token);
+
+  try {
+    const user: UserDocument | null = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(401).json({ message: "User Not Found" });
+    }
+
+    const request = await GroupRequest.findById(requestId);
+
+    if (!request) {
+      return res.status(404).json({ message: "Request Not Found" });
+    }
+
+    const group: GroupDocument | null = await Group.findById(request.groupId);
+
+    if (!group) {
+      return res.status(404).json({ message: "Group doesn't exist" });
+    }
+
+    if (type === "accept" && request.receiver) {
+      request.status = "ACCEPTED";
+      group.members.push(request.receiver);
+      user.groups.push(request.groupId);
+    } else if (type === "reject") {
+      request.status = "REJECTED";
+    }
+
+    await user.save();
+    await group.save();
+    await request.save();
+
+    return res.sendStatus(200);
+  } catch (error) {
+    console.error("Error handling request:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
 };

@@ -25,7 +25,8 @@ userRouter
   .post("/getUser", controller.getUser)
   .post("/delete", controller.deleteUser)
   .post("/update", upload.single("profilePicture"), controller.updateUser)
-  .post("/getRequests", controller.getAllNotifications);
+  .post("/getRequests", controller.getAllNotifications)
+  .post("/handleRequest", controller.handleRequest);
 
 const transactionRouter: Router = Router();
 
