@@ -59,8 +59,6 @@ io.on("connection", (socket) => {
     socketController.handleAcceptRequest(socket, data);
   });
 
-
-
   socket.on("disconnect", () => {
     socket.disconnect();
     console.log("Socket disconnected", socket.id);
@@ -120,3 +118,5 @@ mongoose
   .catch((err) => {
     console.log(err);
   });
+
+export default app;
