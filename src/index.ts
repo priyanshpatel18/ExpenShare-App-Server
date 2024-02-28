@@ -55,6 +55,12 @@ io.on("connection", (socket) => {
     socketController.handleAcceptRequest(socket, data);
   });
 
+  socket.on("removeMember", (data) => {
+    socketController.handleAcceptRequest(socket, data);
+  });
+
+
+
   socket.on("disconnect", () => {
     socket.disconnect();
     console.log("Socket disconnected", socket.id);

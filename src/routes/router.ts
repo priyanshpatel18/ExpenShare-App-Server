@@ -39,6 +39,7 @@ const groupRouter: Router = Router();
 
 groupRouter
   .post("/create", upload.single("groupProfile"), controller.createGroup)
-  .post("/getAll", controller.getAllGroups);
+  .post("/getAll", controller.getAllGroups)
+  .post("/removeMember", controller.removeMember);
 
 export { transactionRouter, userRouter, groupRouter };

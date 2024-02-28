@@ -1,8 +1,15 @@
 // controllers/socketController.js
 import { Socket } from "socket.io";
 import { emailToSocketMap, io } from "..";
-import { Group, GroupDocument, GroupRequest, User } from "../models/models";
+import {
+  Group,
+  GroupDocument,
+  GroupRequest,
+  GroupUser,
+  User,
+} from "../models/models";
 import { decodeEmail } from "./controllers";
+import { Types } from "mongoose";
 
 export async function handleGetUsers(socket: Socket, filter: string) {
   try {
@@ -38,35 +45,30 @@ export async function handleSendRequest(socket: Socket, data: requestData) {
     // Check if user exists
     if (!email) {
       socket.emit("notFound", "User not found");
+      return;
     }
     // Get Sender
     const sender = await User.findOne({ email });
 
     const users = await User.find({ userName: { $in: data.selectedUsers } });
 
-    const existingRequests = await GroupRequest.find({
-      sender: sender?._id,
-      receiver: { $in: users.map((user) => user._id) },
-      groupId: data.groupId,
-    });
-
     if (users && sender) {
       const senderId = emailToSocketMap[sender.email];
       io.to(senderId).emit("requestSent", "Request Sent");
 
-      users.forEach(async (user) => {
+      for (const user of users) {
         const userSocketId = emailToSocketMap[user.email];
 
-        const requestExists = existingRequests.some(
-          (request) =>
-            request.receiver &&
-            request.receiver.equals(user._id) &&
-            (request.status === "PENDING" || request.status === "ACCEPTED")
-        );
+        const existingRequest = await GroupRequest.findOne({
+          sender: sender._id,
+          receiver: user._id,
+          groupId: data.groupId,
+          status: "PENDING",
+        });
 
-        if (!requestExists) {
+        if (!existingRequest) {
           const RequestDocument = await GroupRequest.create({
-            sender: sender?._id,
+            sender: sender._id,
             receiver: user._id,
             groupId: data.groupId,
             groupName: data.groupName,
@@ -81,13 +83,12 @@ export async function handleSendRequest(socket: Socket, data: requestData) {
 
           io.to(userSocketId).emit("requestReceived", object);
         }
-      });
+      }
     }
   } catch (error) {
     console.error("Error sending request:", error);
   }
 }
-
 export async function handleAcceptRequest(
   socket: Socket,
   data: { groupId: string }
@@ -98,20 +99,48 @@ export async function handleAcceptRequest(
     const group: GroupDocument | null = await Group.findOne({ _id: groupId });
     if (!group) {
       console.log("No Group");
-
       socket.emit("groupNotFound", "Group doesn't exist");
       return;
     }
 
-    const users = await User.find({ _id: { $in: group.members } });
+    const groupUsers = await GroupUser.find({
+      _id: { $in: group.members },
+    });
 
-    const userEmails = users.map((user) => user.email);
+    const userEmails = groupUsers.map((user) => user.email);
+
+    const createdByUser = groupUsers.find((user) =>
+      new Types.ObjectId(user._id).equals(group.createdBy)
+    );
+
+    // Map members to include user details
+    const members = groupUsers.map((user) => ({
+      _id: user._id,
+      userName: user.userName,
+      email: user.email,
+      profilePicture: user.profilePicture,
+    }));
+
+    const updatedGroup = {
+      _id: group._id,
+      groupName: group.groupName,
+      groupProfile: group.groupProfile ? group.groupProfile : "",
+      createdBy: {
+        _id: createdByUser?._id,
+        userName: createdByUser?.userName,
+        email: createdByUser?.email,
+        profilePicture: createdByUser?.profilePicture,
+      },
+      members: members,
+      groupExpenses: [],
+      totalExpense: 0,
+      category: group.category,
+    };
 
     userEmails.forEach(async (email) => {
       const userSocketId = emailToSocketMap[email];
-      console.log(userSocketId);
 
-      io.to(userSocketId).emit("updateGroup", { group });
+      io.to(userSocketId).emit("updateGroup", { group: updatedGroup });
     });
   } catch {}
 }

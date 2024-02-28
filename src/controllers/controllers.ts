@@ -12,6 +12,8 @@ import {
   Group,
   GroupDocument,
   GroupRequest,
+  GroupUser,
+  GroupUserDocument,
   History,
   MonthlyHistoryDocument,
   OTP,
@@ -23,6 +25,7 @@ import {
   UserDataDocument,
   UserDocument,
 } from "../models/models";
+import { emailToSocketMap, io } from "..";
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -232,7 +235,7 @@ export const verifyOtp = async (req: Request, res: Response) => {
 // POST : /user/verifyMail
 export const sendVerifyEmail = async (req: Request, res: Response) => {
   const { email, userName, password, selectedImage } = req.body;
-  //
+
   const user: UserDocument | null = await User.findOne({
     $or: [{ email: email }, { userName: userName }],
   });
@@ -699,12 +702,27 @@ export const createGroup = async (req: Request, res: Response) => {
       publicId = result.public_id;
     }
 
+    let existingGroupUser: GroupUserDocument | null;
+    existingGroupUser = await GroupUser.findOne({
+      email: user.email,
+    });
+    if (!existingGroupUser) {
+      // Create a new GroupUser if it doesn't exist
+      existingGroupUser = await GroupUser.create({
+        userId: new Types.ObjectId(user._id),
+        email: user.email,
+        userName: user.userName,
+        profilePicture: user.profilePicture,
+        expenses: [],
+      });
+    }
+
     const newGroup = {
       groupName,
       groupProfile: groupProfile ? profileUrl : "",
       publicId: publicId.trim() ? publicId : "",
-      createdBy: new Types.ObjectId(user._id),
-      members: [new Types.ObjectId(user._id)],
+      createdBy: existingGroupUser._id,
+      members: [existingGroupUser._id],
       groupExpense: [],
       totalExpense: 0,
       category: category,
@@ -715,9 +733,26 @@ export const createGroup = async (req: Request, res: Response) => {
     user.groups.push(GroupDoc._id);
     await user.save();
 
+    const groupUser = {
+      email: user.email,
+      userName: user.userName,
+      profilePicture: user.profilePicture,
+    };
+
+    const responseGroup = {
+      _id: GroupDoc._id,
+      groupName,
+      groupProfile: groupProfile ? profileUrl : "",
+      createdBy: groupUser,
+      members: [groupUser],
+      groupExpenses: [],
+      totalExpense: 0,
+      category: category,
+    };
+
     return res
       .status(200)
-      .json({ message: "Created Successfully", group: GroupDoc });
+      .json({ message: "Created Successfully", group: responseGroup });
   } catch (error) {
     res.status(500).json({ message: "Internal Server Error" });
   }
@@ -729,17 +764,67 @@ export const getAllGroups = async (req: Request, res: Response) => {
   const email: string = decodeEmail(token);
 
   try {
-    const user: UserDocument | null = await User.findOne({ email });
+    const groupUser: GroupUserDocument | null = await GroupUser.findOne({
+      email,
+    });
 
-    if (!user) {
+    if (!groupUser) {
       return res.status(401).json({ message: "User Not Found" });
     }
 
     const groups: GroupDocument[] | null = await Group.find({
-      _id: { $in: user.groups },
+      members: { $in: [groupUser._id] },
     });
 
-    res.status(200).json({ groups });
+    if (!groups) {
+      return res.status(401).json({ message: "Group Not Found" });
+    }
+
+    const allGroupUsers: GroupUserDocument[] | null = await GroupUser.find();
+
+    const mappedGroups = groups.map((group) => {
+      // Find createdBy user
+      const createdByUser = allGroupUsers.find((groupUser) =>
+        new Types.ObjectId(groupUser._id).equals(group.createdBy)
+      );
+      const createdBy = createdByUser
+        ? {
+            _id: createdByUser._id,
+            userName: createdByUser.userName,
+            email: createdByUser.email,
+            profilePicture: createdByUser.profilePicture,
+          }
+        : undefined;
+
+      // Map members
+      const members = group.members
+        .map((member) => {
+          const memberUser = allGroupUsers.find((u) =>
+            new Types.ObjectId(u._id).equals(member)
+          );
+          return memberUser
+            ? {
+                _id: memberUser._id,
+                userName: memberUser.userName,
+                email: memberUser.email,
+                profilePicture: memberUser.profilePicture,
+              }
+            : null;
+        })
+        .filter(Boolean);
+
+      return {
+        _id: group._id,
+        groupName: group.groupName,
+        groupProfile: group.groupProfile,
+        createdBy,
+        members,
+        groupExpenses: group.groupExpense,
+        totalExpense: group.totalExpense,
+        category: group.category,
+      };
+    });
+    res.status(200).json({ groups: mappedGroups });
   } catch (error) {
     res.status(500).json({ message: "Internal Server Error" });
   }
@@ -802,6 +887,22 @@ export const handleRequest = async (req: Request, res: Response) => {
       request.status = "ACCEPTED";
       group.members.push(request.receiver);
       user.groups.push(request.groupId);
+
+      const existingGroupUser: GroupUserDocument | null =
+        await GroupUser.findOne({
+          email: user.email,
+        });
+      if (!existingGroupUser) {
+        // Create a new GroupUser if it doesn't exist
+        await GroupUser.create({
+          _id: new Types.ObjectId(user._id),
+          userId: new Types.ObjectId(user._id),
+          email: user.email,
+          userName: user.userName,
+          profilePicture: user.profilePicture,
+          expenses: [],
+        });
+      }
     } else if (type === "reject") {
       request.status = "REJECTED";
     }
@@ -809,6 +910,61 @@ export const handleRequest = async (req: Request, res: Response) => {
     await user.save();
     await group.save();
     await request.save();
+
+    return res.sendStatus(200);
+  } catch (error) {
+    console.error("Error handling request:", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+export const removeMember = async (req: Request, res: Response) => {
+  const { token, memberEmail, groupId } = req.body;
+
+  const userEmail: string = decodeEmail(token);
+
+  try {
+    const user: UserDocument | null = await User.findOne({ email: userEmail });
+
+    if (!user) {
+      return res.status(401).json({ message: "User Not Found" });
+    }
+
+    const group: GroupDocument | null = await Group.findById({ _id: groupId });
+
+    if (!group) {
+      return res.status(404).json({ message: "Group doesn't exist" });
+    }
+
+    const groupUser: GroupUserDocument | null = await GroupUser.findOne({
+      email: memberEmail,
+    });
+
+    group.members = group.members.filter(
+      (member) => !member.equals(groupUser?._id)
+    );
+
+    if (groupUser) {
+      const member: UserDocument | null = await User.findOne({
+        _id: groupUser.userId,
+      });
+
+      if (member) {
+        member.groups = member.groups.filter((grpId) => !grpId.equals(groupId));
+        await member.save();
+      
+        const socketId = emailToSocketMap[member.email];
+
+        const data = {
+          message: `You have been removed from ${group.groupName}`,
+          groupId,
+        };
+
+        io.to(socketId).emit("removedMember", data);
+      }
+    }
+
+    await group.save();
 
     return res.sendStatus(200);
   } catch (error) {
