@@ -263,6 +263,7 @@ export interface GroupTransactionDocument extends Document {
   splitAmong: Types.ObjectId[];
   category: string;
   transactionTitle: string;
+  transactionAmount: number;
   notes: string;
   invoiceUrl: string;
   publicId: string;
@@ -293,14 +294,9 @@ const groupTransactionSchema = new Schema<GroupTransactionDocument>({
     type: String,
     required: true,
   },
-  notes: {
-    type: String,
-  },
-  invoiceUrl: {
-    type: String,
-  },
-  publicId: {
-    type: String,
+  transactionAmount: {
+    type: Number,
+    required: true,
   },
   transactionDate: {
     type: String,
@@ -355,7 +351,7 @@ export interface GroupDocument extends Document {
   publicId: string;
   createdBy: Types.ObjectId;
   members: Types.ObjectId[];
-  groupExpense: Types.ObjectId[];
+  groupExpenses: Types.ObjectId[];
   totalExpense: number;
   category: string;
 }
@@ -381,7 +377,7 @@ const groupSchema = new Schema<GroupDocument>({
     ref: "GroupUser",
     default: [],
   },
-  groupExpense: {
+  groupExpenses: {
     type: [Schema.Types.ObjectId],
     ref: "GroupTransaction",
     default: [],
@@ -402,11 +398,11 @@ export const Group = model<GroupDocument>("Group", groupSchema);
 const requestSchema = new Schema({
   sender: {
     type: Schema.Types.ObjectId,
-    ref: "User",
+    ref: "GroupUser",
   },
   receiver: {
     type: Schema.Types.ObjectId,
-    ref: "User",
+    ref: "GroupUser",
   },
   groupId: {
     type: Schema.Types.ObjectId,

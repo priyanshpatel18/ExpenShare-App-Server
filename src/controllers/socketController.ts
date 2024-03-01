@@ -1,15 +1,18 @@
 // controllers/socketController.js
+import { Types } from "mongoose";
 import { Socket } from "socket.io";
 import { emailToSocketMap, io } from "..";
 import {
   Group,
   GroupDocument,
   GroupRequest,
+  GroupTransaction,
+  GroupTransactionDocument,
   GroupUser,
   User,
+  UserDocument,
 } from "../models/models";
 import { decodeEmail } from "./controllers";
-import { Types } from "mongoose";
 
 export async function handleGetUsers(socket: Socket, filter: string) {
   try {
@@ -47,52 +50,65 @@ export async function handleSendRequest(socket: Socket, data: requestData) {
       socket.emit("notFound", "User not found");
       return;
     }
-    // Get Sender
-    const sender = await User.findOne({ email });
 
-    const users = await User.find({ userName: { $in: data.selectedUsers } });
+    const group: GroupDocument | null = await Group.findOne({
+      _id: data.groupId,
+    });
 
-    if (users && sender) {
-      const senderId = emailToSocketMap[sender.email];
-      io.to(senderId).emit("requestSent", "Request Sent");
-
-      for (const user of users) {
-        const userSocketId = emailToSocketMap[user.email];
-
-        const existingRequest = await GroupRequest.findOne({
-          sender: sender._id,
-          receiver: user._id,
-          groupId: data.groupId,
-          status: "PENDING",
-        });
-
-        if (!existingRequest) {
-          const RequestDocument = await GroupRequest.create({
-            sender: sender._id,
-            receiver: user._id,
-            groupId: data.groupId,
-            groupName: data.groupName,
-          });
-
-          const object = {
-            message: "You got an invitation from " + sender.userName,
-            requestId: RequestDocument._id,
-            groupName: data.groupName,
-            groupId: data.groupId,
-          };
-
-          io.to(userSocketId).emit("requestReceived", object);
-        }
-      }
+    if (!group) {
+      socket.emit("notFound", "Group not found");
+      return;
     }
+
+    const user: UserDocument | null = await User.findOne({ email });
+
+    if (!user) {
+      socket.emit("notFound", "User not found");
+      return;
+    }
+
+    // Get Sender
+    const groupSender = await GroupUser.findOne({ email: user.email });
+
+    if (!groupSender) {
+      socket.emit("notFound", "User not found");
+      return;
+    }
+
+    const groupUsers = await GroupUser.find({
+      userName: { $in: data.selectedUsers },
+    });
+
+    if (!groupUsers) {
+      socket.emit("notFound", "User not found");
+    }
+
+    groupUsers.forEach(async (member) => {
+      const RequestDocument = await GroupRequest.create({
+        sender: groupSender._id,
+        receiver: member._id,
+        groupId: data.groupId,
+        groupName: data.groupName,
+      });
+
+      const object = {
+        message: "You got an invitation from " + groupSender.userName,
+        requestId: RequestDocument._id,
+        groupName: data.groupName,
+        groupId: data.groupId,
+      };
+
+      const userSocketId = emailToSocketMap[member.email];
+
+      if (userSocketId) {
+        io.to(userSocketId).emit("requestReceived", object);
+      }
+    });
   } catch (error) {
     console.error("Error sending request:", error);
   }
 }
-export async function handleAcceptRequest(
-  socket: Socket,
-  data: { groupId: string }
-) {
+export async function updateGroup(socket: Socket, data: { groupId: string }) {
   try {
     const { groupId } = data;
 
@@ -106,8 +122,6 @@ export async function handleAcceptRequest(
     const groupUsers = await GroupUser.find({
       _id: { $in: group.members },
     });
-
-    const userEmails = groupUsers.map((user) => user.email);
 
     const createdByUser = groupUsers.find((user) =>
       new Types.ObjectId(user._id).equals(group.createdBy)
@@ -132,15 +146,19 @@ export async function handleAcceptRequest(
         profilePicture: createdByUser?.profilePicture,
       },
       members: members,
-      groupExpenses: [],
-      totalExpense: 0,
+      totalExpense: group.totalExpense,
       category: group.category,
     };
 
-    userEmails.forEach(async (email) => {
-      const userSocketId = emailToSocketMap[email];
+    updatedGroup.members.forEach(async (member) => {
+      const userSocketId = emailToSocketMap[member.email];
 
-      io.to(userSocketId).emit("updateGroup", { group: updatedGroup });
+      if (userSocketId) {
+        socket.to(userSocketId).emit("updateGroup", { group: updatedGroup });
+        console.log("Updated: ", member.email, userSocketId);
+      }
     });
-  } catch {}
+  } catch (error) {
+    console.error("Error updating group:", error);
+  }
 }

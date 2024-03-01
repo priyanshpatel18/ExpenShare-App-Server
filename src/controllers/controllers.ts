@@ -12,6 +12,8 @@ import {
   Group,
   GroupDocument,
   GroupRequest,
+  GroupTransaction,
+  GroupTransactionDocument,
   GroupUser,
   GroupUserDocument,
   History,
@@ -764,68 +766,50 @@ export const getAllGroups = async (req: Request, res: Response) => {
   const email: string = decodeEmail(token);
 
   try {
-    const groupUser: GroupUserDocument | null = await GroupUser.findOne({
-      email,
-    });
+    const user: UserDocument | null = await User.findOne({ email });
 
-    if (!groupUser) {
+    if (!user) {
       return res.status(401).json({ message: "User Not Found" });
     }
 
-    const groups: GroupDocument[] | null = await Group.find({
-      members: { $in: [groupUser._id] },
+    const groupUser: GroupUserDocument | null = await GroupUser.findOne({
+      email: user.email,
     });
 
-    if (!groups) {
-      return res.status(401).json({ message: "Group Not Found" });
+    if (!groupUser) {
+      return res.status(401).json({ message: "Group User Not Found" });
     }
 
-    const allGroupUsers: GroupUserDocument[] | null = await GroupUser.find();
-
-    const mappedGroups = groups.map((group) => {
-      // Find createdBy user
-      const createdByUser = allGroupUsers.find((groupUser) =>
-        new Types.ObjectId(groupUser._id).equals(group.createdBy)
-      );
-      const createdBy = createdByUser
-        ? {
-            _id: createdByUser._id,
-            userName: createdByUser.userName,
-            email: createdByUser.email,
-            profilePicture: createdByUser.profilePicture,
-          }
-        : undefined;
-
-      // Map members
-      const members = group.members
-        .map((member) => {
-          const memberUser = allGroupUsers.find((u) =>
-            new Types.ObjectId(u._id).equals(member)
-          );
-          return memberUser
-            ? {
-                _id: memberUser._id,
-                userName: memberUser.userName,
-                email: memberUser.email,
-                profilePicture: memberUser.profilePicture,
-              }
-            : null;
-        })
-        .filter(Boolean);
-
-      return {
-        _id: group._id,
-        groupName: group.groupName,
-        groupProfile: group.groupProfile,
-        createdBy,
-        members,
-        groupExpenses: group.groupExpense,
-        totalExpense: group.totalExpense,
-        category: group.category,
-      };
+    const groups: GroupDocument[] | null = await Group.find({
+      members: { $in: groupUser._id },
     });
+
+    const allGroupUsers: GroupUserDocument[] | null = await GroupUser.find();
+    const allGroupTransactions: GroupTransactionDocument[] | null =
+      await GroupTransaction.find();
+
+    const mappedGroups = groups.map((group) => ({
+      _id: group._id,
+      groupName: group.groupName,
+      groupProfile: group.groupProfile ? group.groupProfile : undefined,
+      createdBy: allGroupUsers.find((user) =>
+        new Types.ObjectId(user._id).equals(group.createdBy)
+      ),
+      members: allGroupUsers.filter((user) => {
+        const userId = new Types.ObjectId(user._id);
+        return group.members.some((memberId) => userId.equals(memberId));
+      }),
+      groupExpenses: allGroupTransactions.filter((transaction) => {
+        const groupId = new Types.ObjectId(group._id);
+        return transaction.groupId.equals(groupId);
+      }),
+      totalExpense: group.totalExpense,
+      category: group.category,
+    }));
+
     res.status(200).json({ groups: mappedGroups });
   } catch (error) {
+    console.error(error);
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
@@ -952,7 +936,7 @@ export const removeMember = async (req: Request, res: Response) => {
       if (member) {
         member.groups = member.groups.filter((grpId) => !grpId.equals(groupId));
         await member.save();
-      
+
         const socketId = emailToSocketMap[member.email];
 
         const data = {
@@ -967,6 +951,70 @@ export const removeMember = async (req: Request, res: Response) => {
     await group.save();
 
     return res.sendStatus(200);
+  } catch (error) {
+    console.error("Error handling request:", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+export const addGroupTransaction = async (req: Request, res: Response) => {
+  const {
+    groupId,
+    paidBy,
+    splitAmong,
+    category,
+    transactionTitle,
+    transactionAmount,
+    transactionDate,
+  } = req.body;
+
+  const email = decodeEmail(req.body.token);
+
+  if (!email) {
+    return res.status(401).json({ message: "Invalid Token" });
+  }
+  try {
+    const user: UserDocument | null = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(401).json({ message: "User Not Found" });
+    }
+
+    const GroupTransactionDoc = await GroupTransaction.create({
+      groupId,
+      paidBy: new Types.ObjectId(paidBy),
+      splitAmong: splitAmong.map((id: string) => new Types.ObjectId(id)),
+      category,
+      transactionTitle,
+      transactionAmount,
+      transactionDate,
+    });
+
+    const group: GroupDocument | null = await Group.findOne({
+      _id: groupId,
+    });
+
+    if (!group) {
+      return res.status(404).json({ message: "Group doesn't exist" });
+    }
+
+    group.totalExpense += transactionAmount;
+    group.groupExpenses.push(new Types.ObjectId(GroupTransactionDoc._id));
+
+    await group.save();
+
+    const members = await GroupUser.find({
+      _id: { $in: splitAmong },
+    });
+
+    for (const member of members) {
+      member.expenses.push(new Types.ObjectId(GroupTransactionDoc._id));
+      io.to(member.email).emit("newTransaction", "A new Transaction was added");
+    }
+
+    await GroupUser.bulkSave(members);
+
+    res.status(200).json({ message: "Transaction Added Successfully" });
   } catch (error) {
     console.error("Error handling request:", error);
     res.status(500).json({ message: "Internal Server Error" });
