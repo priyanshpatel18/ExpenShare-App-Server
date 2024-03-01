@@ -7,6 +7,7 @@ export interface GroupDocument extends Document {
   createdBy: Types.ObjectId;
   members: Types.ObjectId[];
   groupTransactions: Types.ObjectId[];
+  balances: Types.ObjectId[];
   totalExpense: number;
   category: string;
 }
@@ -37,6 +38,11 @@ const groupSchema = new Schema<GroupDocument>({
     ref: "GroupTransaction",
     default: [],
   },
+  balances: [{
+    type: Schema.Types.ObjectId,
+    ref: "Balance",
+    required: true,
+  }],
   totalExpense: {
     type: Number,
     required: true,

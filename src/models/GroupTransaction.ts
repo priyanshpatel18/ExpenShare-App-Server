@@ -8,9 +8,6 @@ export interface GroupTransactionDocument extends Document {
   category: string;
   transactionTitle: string;
   transactionAmount: number;
-  notes: string;
-  invoiceUrl: string;
-  publicId: string;
   transactionDate: string;
 }
 

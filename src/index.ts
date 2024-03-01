@@ -57,10 +57,6 @@ io.on("connection", (socket) => {
     socketController.updateGroup(socket, data);
   });
 
-  socket.on("removeMember", (data) => {
-    socketController.updateGroup(socket, data);
-  });
-
   socket.on("addTransaction", (data) => {
     socketController.updateGroup(socket, data);
   });

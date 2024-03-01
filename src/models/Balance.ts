@@ -2,10 +2,11 @@ import { Document, Schema, Types, model } from "mongoose";
 
 export interface BalanceDocument extends Document {
   groupId: Types.ObjectId;
-  memberId: Types.ObjectId;
-  getsBack: number;
-  owes: number;
-  paidBy: Types.ObjectId;
+  debtorIds: Types.ObjectId[];
+  creditorId: Types.ObjectId;
+  amount: number;
+  settled: boolean;
+  date: string;
 }
 
 const balanceSchema = new Schema<BalanceDocument>({
@@ -14,24 +15,29 @@ const balanceSchema = new Schema<BalanceDocument>({
     ref: "Group",
     required: true,
   },
-  memberId: {
+  debtorIds: [
+    {
+      type: Schema.Types.ObjectId,
+      ref: "GroupUser",
+      required: true,
+    },
+  ],
+  creditorId: {
     type: Schema.Types.ObjectId,
     ref: "GroupUser",
     required: true,
   },
-  getsBack: {
+  amount: {
     type: Number,
     required: true,
-    default: 0,
   },
-  owes: {
-    type: Number,
+  settled: {
+    type: Boolean,
     required: true,
-    default: 0,
+    default: false,
   },
-  paidBy: {
-    type: Schema.Types.ObjectId,
-    ref: "GroupUser",
+  date: {
+    type: String,
     required: true,
   },
 });

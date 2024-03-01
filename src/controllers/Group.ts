@@ -135,7 +135,12 @@ export const getAllGroups = async (req: Request, res: Response) => {
 
     const allGroupUsers: GroupUserDocument[] | null = await GroupUser.find();
     const allGroupTransactions: GroupTransactionDocument[] | null =
-      await GroupTransaction.find();
+      await GroupTransaction.find({
+        groupId: { $in: groups.map((group) => group._id) },
+      });
+    const allBalances: BalanceDocument[] | null = await Balance.find({
+      groupId: { $in: groups.map((group) => group._id) },
+    });
 
     const mappedGroups = groups.map((group) => ({
       _id: group._id,
@@ -148,12 +153,37 @@ export const getAllGroups = async (req: Request, res: Response) => {
         const userId = new Types.ObjectId(user._id);
         return group.members.some((memberId) => userId.equals(memberId));
       }),
-      groupExpenses: allGroupTransactions.filter((transaction) => {
-        const groupId = new Types.ObjectId(group._id);
-        return transaction.groupId.equals(groupId);
-      }),
-      totalExpense: group.totalExpense,
-      category: group.category,
+      groupTransactions: allGroupTransactions.map((transaction) => ({
+        _id: transaction._id,
+        groupId: transaction.groupId,
+        paidBy: allGroupUsers.find((user) =>
+          new Types.ObjectId(user._id).equals(transaction.paidBy)
+        ),
+        splitAmong: transaction.splitAmong.map((memberId) =>
+          allGroupUsers.find((user) =>
+            new Types.ObjectId(user._id).equals(memberId)
+          )
+        ),
+        category: transaction.category,
+        transactionTitle: transaction.transactionTitle,
+        transactionAmount: transaction.transactionAmount,
+        transactionDate: transaction.transactionDate,
+      })),
+      balances: allBalances.map((balance) => ({
+        _id: balance._id,
+        groupId: balance.groupId,
+        debtorIds: allGroupUsers.find((user) =>
+          balance.debtorIds.some((debtorId) =>
+            new Types.ObjectId(user._id).equals(debtorId)
+          )
+        ),
+        creditorId: allGroupUsers.find((user) =>
+          new Types.ObjectId(user._id).equals(balance.creditorId)
+        ),
+        amount: balance.amount,
+        status: balance.settled,
+        date: balance.date,
+      })),
     }));
 
     res.status(200).json({ groups: mappedGroups });
@@ -242,8 +272,9 @@ export const addGroupTransaction = async (req: Request, res: Response) => {
     }
 
     const groupUsers: GroupUserDocument[] | null = await GroupUser.find({
-      email: { $in: [...splitAmong, paidBy] },
+      _id: { $in: [...splitAmong, paidBy] },
     });
+    console.log(groupUsers);
 
     if (!groupUsers) {
       return res.status(401).json({ message: "Group Users not found" });
@@ -259,6 +290,14 @@ export const addGroupTransaction = async (req: Request, res: Response) => {
       transactionDate,
     });
 
+    const balanceDoc: BalanceDocument | null = await Balance.create({
+      groupId,
+      debtorIds: splitAmong.map((id: string) => new Types.ObjectId(id)),
+      creditorId: new Types.ObjectId(paidBy),
+      amount: transactionAmount,
+      date: transactionDate,
+    });
+
     const group: GroupDocument | null = await Group.findOne({
       _id: groupId,
     });
@@ -269,32 +308,9 @@ export const addGroupTransaction = async (req: Request, res: Response) => {
 
     group.totalExpense += transactionAmount;
     group.groupTransactions.push(new Types.ObjectId(GroupTransactionDoc._id));
+    group.balances.push(new Types.ObjectId(balanceDoc._id));
 
     await group.save();
-
-    const members = await GroupUser.find({
-      _id: { $in: splitAmong },
-    });
-
-    const totalMembers = splitAmong.length + 1;
-    const splitAmount = transactionAmount / totalMembers;
-    const paidAmount = transactionAmount - splitAmount;
-
-    for (const member of members) {
-      const balance: BalanceDocument = await Balance.findOneAndUpdate(
-        { groupId: groupId, memberId: member._id },
-        {
-          $inc: {
-            getsBack: member._id === paidBy ? paidAmount : 0,
-            owes: splitAmong.includes(member._id) ? splitAmount : 0,
-          },
-        },
-        { upsert: true, new: true }
-      );
-
-      member.balances.push(balance._id);
-      io.to(member.email).emit("newTransaction", "A new Transaction was added");
-    }
 
     res.status(200).json({ message: "Transaction Added Successfully" });
   } catch (error) {

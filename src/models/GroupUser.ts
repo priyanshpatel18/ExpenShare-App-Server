@@ -6,7 +6,6 @@ export interface GroupUserDocument extends Document {
   email: string;
   userName: string;
   profilePicture: string;
-  balances: Types.ObjectId[];
 }
 
 const groupUserSchema = new Schema<GroupUserDocument>({
@@ -26,11 +25,6 @@ const groupUserSchema = new Schema<GroupUserDocument>({
   profilePicture: {
     type: String,
     contentType: String,
-  },
-  balances: {
-    type: [Schema.Types.ObjectId],
-    ref: "Balance",
-    required: true,
   },
 });
 

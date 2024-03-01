@@ -7,7 +7,10 @@ import { Group, GroupDocument } from "../models/Group";
 import { GroupUser } from "../models/GroupUser";
 import { GroupRequest } from "../models/Request";
 import { User, UserDocument } from "../models/User";
-
+import {
+  GroupTransaction,
+  GroupTransactionDocument,
+} from "../models/GroupTransaction";
 
 export const decodeEmail = (token: string) => {
   const decodedToken: string | JwtPayload = jwt.verify(
@@ -117,60 +120,70 @@ export async function handleSendRequest(socket: Socket, data: requestData) {
   }
 }
 
-export async function updateGroup(socket: Socket, data: { groupId: string }) {
-  try {
-    const { groupId } = data;
-
-    const group: GroupDocument | null = await Group.findOne({ _id: groupId });
-    if (!group) {
-      console.log("No Group");
-      socket.emit("groupNotFound", "Group doesn't exist");
-      return;
-    }
-
-    const groupUsers = await GroupUser.find({
-      _id: { $in: group.members },
-    });
-
-    const createdByUser = groupUsers.find((user) =>
-      new Types.ObjectId(user._id).equals(group.createdBy)
-    );
-
-    // Map members to include user details
-    const members = groupUsers.map((user) => ({
-      _id: user._id,
-      userName: user.userName,
-      email: user.email,
-      profilePicture: user.profilePicture,
-    }));
-
-    // Map Transaction
-
-    const updatedGroup = {
-      _id: group._id,
-      groupName: group.groupName,
-      groupProfile: group.groupProfile ? group.groupProfile : "",
-      createdBy: {
-        _id: createdByUser?._id,
-        userName: createdByUser?.userName,
-        email: createdByUser?.email,
-        profilePicture: createdByUser?.profilePicture,
-      },
-      members: members,
-      groupExpenses: group.groupTransactions,
-      totalExpense: group.totalExpense,
-      category: group.category,
-    };
-
-    updatedGroup.members.forEach(async (member) => {
-      const userSocketId = emailToSocketMap[member.email];
-
-      if (userSocketId) {
-        socket.to(userSocketId).emit("updateGroup", { group: updatedGroup });
-        console.log("Updated: ", member.email, userSocketId);
-      }
-    });
-  } catch (error) {
-    console.error("Error updating group:", error);
+export const updateGroup = async (
+  socket: Socket,
+  data: {
+    groupId: string;
   }
-}
+) => {
+  const { groupId } = data;
+
+  const group: GroupDocument | null = await Group.findOne({ _id: groupId });
+  if (!group) {
+    console.log("No Group");
+    socket.emit("groupNotFound", "Group doesn't exist");
+    return;
+  }
+
+  const groupUsers = await GroupUser.find({
+    _id: { $in: group.members },
+  });
+
+  const members = groupUsers.map((user) => ({
+    _id: user._id,
+    userName: user.userName,
+    email: user.email,
+    profilePicture: user.profilePicture,
+  }));
+
+  const groupTransactions: GroupTransactionDocument[] | null =
+    await GroupTransaction.find({
+      groupId,
+    });
+
+  const transactions = groupTransactions.map((transaction) => ({
+    _id: transaction._id,
+    groupId: new Types.ObjectId(transaction.groupId),
+    paidBy: groupUsers.find((user) =>
+      new Types.ObjectId(user._id).equals(transaction.paidBy)
+    ),
+    splitAmong: groupUsers.filter((user) =>
+      transaction.splitAmong.includes(new Types.ObjectId(user._id))
+    ),
+    category: transaction.category,
+    transactionAmount: transaction.transactionAmount,
+    transactionTitle: transaction.transactionTitle,
+    transactionDate: transaction.transactionDate,
+    totalExpense: group.totalExpense,
+  }));
+
+  const updatedGroup = {
+    _id: group._id,
+    groupName: group.groupName,
+    groupProfile: group.groupProfile ? group.groupProfile : undefined,
+    createdBy: groupUsers.find((user) =>
+      new Types.ObjectId(user._id).equals(group.createdBy)
+    ),
+    members: members,
+    groupExpenses: transactions,
+    totalExpense: group.totalExpense,
+    category: group.category,
+  };
+
+  for (const member of groupUsers) {
+    const userSocketId = emailToSocketMap[member.email];
+    if (userSocketId) {
+      io.to(userSocketId).emit("updateGroup", { group: updatedGroup });
+    }
+  }
+};
