@@ -1,4 +1,4 @@
-import User from "./models/userModel";
+import User from "./models/User";
 import { Session } from "express-session";
 
 declare module "express-serve-static-core" {

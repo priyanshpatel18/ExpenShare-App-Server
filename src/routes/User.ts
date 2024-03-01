@@ -1,6 +1,6 @@
 import { Router } from "express";
 import multer from "multer";
-import * as controller from "../controllers/controllers";
+import * as controller from "../controllers/User";
 
 // Configure Storage
 const storage: multer.StorageEngine = multer.diskStorage({
@@ -15,7 +15,6 @@ const upload: multer.Multer = multer({ storage: storage });
 const userRouter: Router = Router();
 
 userRouter
-  .post("/getAllUsers", controller.getAllUsers)
   .post("/resetPassword", controller.resetPassword)
   .post("/register", upload.single("profilePicture"), controller.registerUser)
   .post("/login", controller.loginUser)
@@ -28,19 +27,4 @@ userRouter
   .post("/getRequests", controller.getAllNotifications)
   .post("/handleRequest", controller.handleRequest);
 
-const transactionRouter: Router = Router();
-
-transactionRouter
-  .post("/add", upload.single("invoice"), controller.addTransaction)
-  .post("/getAll", controller.getAllTransactions)
-  .post("/delete", controller.deleteTransaction);
-
-const groupRouter: Router = Router();
-
-groupRouter
-  .post("/create", upload.single("groupProfile"), controller.createGroup)
-  .post("/getAll", controller.getAllGroups)
-  .post("/removeMember", controller.removeMember)
-  .post("/addTransaction", controller.addGroupTransaction);
-
-export { transactionRouter, userRouter, groupRouter };
+export default userRouter;

@@ -1,18 +1,26 @@
 // controllers/socketController.js
+import jwt, { JwtPayload } from "jsonwebtoken";
 import { Types } from "mongoose";
 import { Socket } from "socket.io";
 import { emailToSocketMap, io } from "..";
-import {
-  Group,
-  GroupDocument,
-  GroupRequest,
-  GroupTransaction,
-  GroupTransactionDocument,
-  GroupUser,
-  User,
-  UserDocument,
-} from "../models/models";
-import { decodeEmail } from "./controllers";
+import { Group, GroupDocument } from "../models/Group";
+import { GroupUser } from "../models/GroupUser";
+import { GroupRequest } from "../models/Request";
+import { User, UserDocument } from "../models/User";
+
+
+export const decodeEmail = (token: string) => {
+  const decodedToken: string | JwtPayload = jwt.verify(
+    token,
+    String(process.env.SECRET_KEY)
+  );
+
+  if (!decodedToken || typeof decodedToken === "string") {
+    return "Invalid Token";
+  }
+
+  return String(decodedToken.email);
+};
 
 export async function handleGetUsers(socket: Socket, filter: string) {
   try {
@@ -108,6 +116,7 @@ export async function handleSendRequest(socket: Socket, data: requestData) {
     console.error("Error sending request:", error);
   }
 }
+
 export async function updateGroup(socket: Socket, data: { groupId: string }) {
   try {
     const { groupId } = data;
@@ -135,6 +144,8 @@ export async function updateGroup(socket: Socket, data: { groupId: string }) {
       profilePicture: user.profilePicture,
     }));
 
+    // Map Transaction
+
     const updatedGroup = {
       _id: group._id,
       groupName: group.groupName,
@@ -146,6 +157,7 @@ export async function updateGroup(socket: Socket, data: { groupId: string }) {
         profilePicture: createdByUser?.profilePicture,
       },
       members: members,
+      groupExpenses: group.groupTransactions,
       totalExpense: group.totalExpense,
       category: group.category,
     };

@@ -10,8 +10,10 @@ import cron from "node-cron";
 import path from "path";
 import { Server } from "socket.io";
 // File Imports
-import * as socketController from "./controllers/socketController";
-import { groupRouter, transactionRouter, userRouter } from "./routes/router";
+import * as socketController from "./controllers/Socket";
+import userRouter from "./routes/User";
+import groupRouter from "./routes/Group";
+import transactionRouter from "./routes/Transaction";
 
 // Creating Backend Application
 const app: Express = express();
