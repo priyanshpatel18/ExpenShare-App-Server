@@ -17,6 +17,7 @@ const transactionRouter: Router = Router();
 transactionRouter
   .post("/add", upload.single("invoice"), controller.addTransaction)
   .post("/getAll", controller.getAllTransactions)
-  .post("/delete", controller.deleteTransaction);
+  .post("/delete", controller.deleteTransaction)
+  .post("/update", upload.single("invoice"), controller.updateTransaction);
 
 export default transactionRouter;

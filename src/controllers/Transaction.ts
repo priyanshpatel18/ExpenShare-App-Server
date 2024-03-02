@@ -1,16 +1,9 @@
-import bcrypt from "bcrypt";
 import { UploadApiResponse, v2 as cloudinary } from "cloudinary";
-import ejs from "ejs";
 import { Request, Response } from "express";
 import jwt, { JwtPayload } from "jsonwebtoken";
 import { Types } from "mongoose";
-import nodemailer from "nodemailer";
-import SMTPTransport from "nodemailer/lib/smtp-transport";
-import otpGenerator from "otp-generator";
-import path from "path";
-import { emailToSocketMap, io } from "..";
-import { Transaction, TransactionDocument } from "../models/Transaction";
 import { History, MonthlyHistoryDocument } from "../models/History";
+import { Transaction, TransactionDocument } from "../models/Transaction";
 import { User, UserDocument } from "../models/User";
 
 export const decodeEmail = (token: string) => {
@@ -222,6 +215,106 @@ export const deleteTransaction = async (req: Request, res: Response) => {
 
     res.status(200).json({ message: "Transaction deleted Successfully" });
   } catch (error) {
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+export const updateTransaction = async (req: Request, res: Response) => {
+  const {
+    token,
+    transactionId,
+    transactionAmount,
+    category,
+    transactionTitle,
+    transactionDate,
+    type,
+    notes,
+  } = req.body;
+  const invoice: string | undefined = req.file?.path;
+
+  const email = decodeEmail(token);
+
+  if (!email) {
+    return res.status(401).json({ message: "Invalid Token" });
+  }
+
+  try {
+    const user: UserDocument | null = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(401).json({ message: "User Not Found" });
+    }
+    console.log(transactionId, typeof transactionId);
+
+    const transaction: TransactionDocument | null = await Transaction.findById({
+      _id: transactionId,
+    });
+
+    if (type === "income") {
+      user.totalIncome -= Number(transaction?.transactionAmount);
+      user.totalBalance -= Number(transaction?.transactionAmount);
+    } else if (type === "expense") {
+      user.totalExpense -= Number(transaction?.transactionAmount);
+      user.totalBalance += Number(transaction?.transactionAmount);
+    }
+
+    if (!transaction) {
+      return res.status(401).json({ message: "Transaction Not Found" });
+    }
+
+    transaction.category = category;
+    transaction.transactionTitle = transactionTitle;
+    transaction.transactionAmount = String(transactionAmount);
+    transaction.transactionDate = transactionDate;
+    transaction.type = type;
+    transaction.notes = notes;
+
+    let profileUrl: string = "";
+    let publicId: string = "";
+
+    if (transaction.invoiceUrl.includes("uploads") && invoice) {
+      cloudinary.uploader.destroy(transaction.publicId, (error) => {
+        if (error) {
+          console.log(error);
+        }
+      });
+    }
+
+    if (invoice) {
+      const result: UploadApiResponse = await cloudinary.uploader.upload(
+        invoice,
+        {
+          folder: "uploads",
+        }
+      );
+
+      profileUrl = result.secure_url;
+      publicId = result.public_id;
+
+      transaction.invoiceUrl = profileUrl;
+      transaction.publicId = publicId;
+    }
+
+    if (type === "income") {
+      user.totalIncome += Number(transactionAmount);
+      user.totalBalance += Number(transactionAmount);
+    } else if (type === "expense") {
+      user.totalExpense += Number(transactionAmount);
+      user.totalBalance -= Number(transactionAmount);
+    }
+
+    await user.save();
+    await transaction.save();
+
+    const totals = {
+      balance: user.totalBalance,
+      income: user.totalIncome,
+      expense: user.totalExpense,
+    };
+
+    res.status(200).json({ totals });
+  } catch (err) {
+    console.log(err);
     res.status(500).json({ message: "Internal Server Error" });
   }
 };

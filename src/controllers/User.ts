@@ -364,6 +364,10 @@ export const updateUser = async (req: Request, res: Response) => {
       return res.status(401).json({ message: "User not found" });
     }
 
+    const groupUser: GroupUserDocument | null = await GroupUser.findOne({
+      email,
+    });
+
     if (userName) {
       user.userName = userName;
     }
@@ -391,6 +395,20 @@ export const updateUser = async (req: Request, res: Response) => {
 
       user.profilePicture = profileUrl;
       user.publicId = publicId;
+      if (groupUser) {
+        groupUser.profilePicture = profileUrl;
+      }
+    }
+
+    if (groupUser) {
+      if (userName) {
+        groupUser.userName = userName;
+      }
+      if (profilePicture) {
+        groupUser.profilePicture = profileUrl;
+      }
+
+      await groupUser.save();
     }
     await user.save();
 

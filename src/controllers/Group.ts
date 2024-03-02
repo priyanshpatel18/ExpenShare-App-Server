@@ -153,26 +153,10 @@ export const getAllGroups = async (req: Request, res: Response) => {
         const userId = new Types.ObjectId(user._id);
         return group.members.some((memberId) => userId.equals(memberId));
       }),
-      groupTransactions: allGroupTransactions.map((transaction) => ({
-        _id: transaction._id,
-        groupId: transaction.groupId,
-        paidBy: allGroupUsers.find((user) =>
-          new Types.ObjectId(user._id).equals(transaction.paidBy)
-        ),
-        splitAmong: transaction.splitAmong.map((memberId) =>
-          allGroupUsers.find((user) =>
-            new Types.ObjectId(user._id).equals(memberId)
-          )
-        ),
-        category: transaction.category,
-        transactionTitle: transaction.transactionTitle,
-        transactionAmount: transaction.transactionAmount,
-        transactionDate: transaction.transactionDate,
-      })),
       balances: allBalances.map((balance) => ({
         _id: balance._id,
         groupId: balance.groupId,
-        debtorIds: allGroupUsers.find((user) =>
+        debtorIds: allGroupUsers.filter((user) =>
           balance.debtorIds.some((debtorId) =>
             new Types.ObjectId(user._id).equals(debtorId)
           )
@@ -184,6 +168,24 @@ export const getAllGroups = async (req: Request, res: Response) => {
         status: balance.settled,
         date: balance.date,
       })),
+      groupExpenses: allGroupTransactions
+        .filter((transaction) => transaction.groupId.equals(group._id))
+        .map((transaction) => ({
+          _id: transaction._id,
+          groupId: transaction.groupId,
+          paidBy: allGroupUsers.find((user) =>
+            new Types.ObjectId(user._id).equals(transaction.paidBy)
+          ),
+          splitAmong: transaction.splitAmong.map((memberId) =>
+            allGroupUsers.find((user) =>
+              new Types.ObjectId(user._id).equals(memberId)
+            )
+          ),
+          category: transaction.category,
+          transactionTitle: transaction.transactionTitle,
+          transactionAmount: transaction.transactionAmount,
+          transactionDate: transaction.transactionDate,
+        })),
     }));
 
     res.status(200).json({ groups: mappedGroups });
@@ -274,7 +276,6 @@ export const addGroupTransaction = async (req: Request, res: Response) => {
     const groupUsers: GroupUserDocument[] | null = await GroupUser.find({
       _id: { $in: [...splitAmong, paidBy] },
     });
-    console.log(groupUsers);
 
     if (!groupUsers) {
       return res.status(401).json({ message: "Group Users not found" });
@@ -292,7 +293,9 @@ export const addGroupTransaction = async (req: Request, res: Response) => {
 
     const balanceDoc: BalanceDocument | null = await Balance.create({
       groupId,
-      debtorIds: splitAmong.map((id: string) => new Types.ObjectId(id)),
+      debtorIds: splitAmong
+        .filter((id: string) => id !== paidBy)
+        .map((id: string) => new Types.ObjectId(id)),
       creditorId: new Types.ObjectId(paidBy),
       amount: transactionAmount,
       date: transactionDate,

@@ -11,6 +11,7 @@ import {
   GroupTransaction,
   GroupTransactionDocument,
 } from "../models/GroupTransaction";
+import { Balance, BalanceDocument } from "../models/Balance";
 
 export const decodeEmail = (token: string) => {
   const decodedToken: string | JwtPayload = jwt.verify(
@@ -167,6 +168,26 @@ export const updateGroup = async (
     totalExpense: group.totalExpense,
   }));
 
+  const groupBalances: BalanceDocument[] | null = await Balance.find({
+    groupId,
+  });
+
+  const balances = groupBalances.map((balance) => ({
+    _id: balance._id,
+    groupId: new Types.ObjectId(balance.groupId),
+    debtorIds: groupUsers.filter((user) =>
+      balance.debtorIds.some((debtorId) =>
+        new Types.ObjectId(user._id).equals(debtorId)
+      )
+    ),
+    creditorId: groupUsers.find((user) =>
+      new Types.ObjectId(user._id).equals(balance.creditorId)
+    ),
+    amount: balance.amount,
+    status: balance.settled,
+    date: balance.date,
+  }));
+
   const updatedGroup = {
     _id: group._id,
     groupName: group.groupName,
@@ -176,6 +197,7 @@ export const updateGroup = async (
     ),
     members: members,
     groupExpenses: transactions,
+    balances: balances,
     totalExpense: group.totalExpense,
     category: group.category,
   };
