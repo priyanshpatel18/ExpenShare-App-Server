@@ -6,6 +6,8 @@ export interface GroupUserDocument extends Document {
   email: string;
   userName: string;
   profilePicture: string;
+  owes: Types.ObjectId[];
+  getsBack: Types.ObjectId[];
 }
 
 const groupUserSchema = new Schema<GroupUserDocument>({

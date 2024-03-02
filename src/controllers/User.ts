@@ -128,6 +128,7 @@ export const loginUser = async (req: Request, res: Response) => {
 // POST : /user/sendMail
 export const sendMail = async (req: Request, res: Response) => {
   const { email } = req.body;
+  console.log(req.body);
 
   const user: UserDocument | null = await User.findOne({ email });
   // Check for User Existence
@@ -481,7 +482,7 @@ export const handleRequest = async (req: Request, res: Response) => {
       return res.status(401).json({ message: "User Not Found" });
     }
 
-    const request = await GroupRequest.findById(requestId);
+    const request = await GroupRequest.findById({ _id: requestId });
 
     if (!request) {
       return res.status(404).json({ message: "Request Not Found" });
@@ -494,18 +495,13 @@ export const handleRequest = async (req: Request, res: Response) => {
     }
 
     if (type === "accept" && request.receiver) {
-      request.status = "ACCEPTED";
-      group.members.push(request.receiver);
-      user.groups.push(request.groupId);
-
-      const existingGroupUser: GroupUserDocument | null =
-        await GroupUser.findOne({
-          email: user.email,
-        });
-      if (!existingGroupUser) {
+      let groupUser: GroupUserDocument | null;
+      groupUser = await GroupUser.findOne({
+        email: user.email,
+      });
+      if (!groupUser) {
         // Create a new GroupUser if it doesn't exist
-        await GroupUser.create({
-          _id: new Types.ObjectId(user._id),
+        groupUser = await GroupUser.create({
           userId: new Types.ObjectId(user._id),
           email: user.email,
           userName: user.userName,
@@ -513,6 +509,10 @@ export const handleRequest = async (req: Request, res: Response) => {
           expenses: [],
         });
       }
+
+      request.status = "ACCEPTED";
+      group.members.push(new Types.ObjectId(groupUser._id));
+      user.groups.push(request.groupId);
     } else if (type === "reject") {
       request.status = "REJECTED";
     }

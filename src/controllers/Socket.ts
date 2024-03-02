@@ -87,18 +87,18 @@ export async function handleSendRequest(socket: Socket, data: requestData) {
       return;
     }
 
-    const groupUsers = await GroupUser.find({
+    const users: UserDocument[] | null = await User.find({
       userName: { $in: data.selectedUsers },
     });
 
-    if (!groupUsers) {
+    if (!users) {
       socket.emit("notFound", "User not found");
     }
 
-    groupUsers.forEach(async (member) => {
+    users.forEach(async (user) => {
       const RequestDocument = await GroupRequest.create({
         sender: groupSender._id,
-        receiver: member._id,
+        receiver: user._id,
         groupId: data.groupId,
         groupName: data.groupName,
       });
@@ -110,7 +110,7 @@ export async function handleSendRequest(socket: Socket, data: requestData) {
         groupId: data.groupId,
       };
 
-      const userSocketId = emailToSocketMap[member.email];
+      const userSocketId = emailToSocketMap[user.email];
 
       if (userSocketId) {
         io.to(userSocketId).emit("requestReceived", object);
@@ -172,21 +172,21 @@ export const updateGroup = async (
     groupId,
   });
 
-  const balances = groupBalances.map((balance) => ({
-    _id: balance._id,
-    groupId: new Types.ObjectId(balance.groupId),
-    debtorIds: groupUsers.filter((user) =>
-      balance.debtorIds.some((debtorId) =>
-        new Types.ObjectId(user._id).equals(debtorId)
-      )
-    ),
-    creditorId: groupUsers.find((user) =>
-      new Types.ObjectId(user._id).equals(balance.creditorId)
-    ),
-    amount: balance.amount,
-    status: balance.settled,
-    date: balance.date,
-  }));
+  // const balances = groupBalances.map((balance) => ({
+  //   _id: balance._id,
+  //   groupId: new Types.ObjectId(balance.groupId),
+  //   debtorIds: groupUsers.filter((user) =>
+  //     balance.debtorIds.some((debtorId) =>
+  //       new Types.ObjectId(user._id).equals(debtorId)
+  //     )
+  //   ),
+  //   creditorId: groupUsers.find((user) =>
+  //     new Types.ObjectId(user._id).equals(balance.creditorId)
+  //   ),
+  //   amount: balance.amount,
+  //   status: balance.settled,
+  //   date: balance.date,
+  // }));
 
   const updatedGroup = {
     _id: group._id,
@@ -197,7 +197,7 @@ export const updateGroup = async (
     ),
     members: members,
     groupExpenses: transactions,
-    balances: balances,
+    // balances: balances,
     totalExpense: group.totalExpense,
     category: group.category,
   };

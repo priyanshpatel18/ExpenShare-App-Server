@@ -11,6 +11,7 @@ import {
   GroupTransaction,
   GroupTransactionDocument,
 } from "../models/GroupTransaction";
+import { consumers } from "nodemailer/lib/xoauth2";
 
 export const decodeEmail = (token: string) => {
   const decodedToken: string | JwtPayload = jwt.verify(
@@ -126,7 +127,7 @@ export const getAllGroups = async (req: Request, res: Response) => {
     });
 
     if (!groupUser) {
-      return res.status(401).json({ message: "Group User Not Found" });
+      return res.status(200).json({ message: "User has no groups" });
     }
 
     const groups: GroupDocument[] | null = await Group.find({
@@ -153,21 +154,21 @@ export const getAllGroups = async (req: Request, res: Response) => {
         const userId = new Types.ObjectId(user._id);
         return group.members.some((memberId) => userId.equals(memberId));
       }),
-      balances: allBalances.map((balance) => ({
-        _id: balance._id,
-        groupId: balance.groupId,
-        debtorIds: allGroupUsers.filter((user) =>
-          balance.debtorIds.some((debtorId) =>
-            new Types.ObjectId(user._id).equals(debtorId)
-          )
-        ),
-        creditorId: allGroupUsers.find((user) =>
-          new Types.ObjectId(user._id).equals(balance.creditorId)
-        ),
-        amount: balance.amount,
-        status: balance.settled,
-        date: balance.date,
-      })),
+      // balances: allBalances.map((balance) => ({
+      //   _id: balance._id,
+      //   groupId: balance.groupId,
+      //   debtorIds: allGroupUsers.filter((user) =>
+      //     balance.debtorIds.some((debtorId) =>
+      //       new Types.ObjectId(user._id).equals(debtorId)
+      //     )
+      //   ),
+      //   creditorId: allGroupUsers.find((user) =>
+      //     new Types.ObjectId(user._id).equals(balance.creditorId)
+      //   ),
+      //   amount: balance.amount,
+      //   status: balance.settled,
+      //   date: balance.date,
+      // })),
       groupExpenses: allGroupTransactions
         .filter((transaction) => transaction.groupId.equals(group._id))
         .map((transaction) => ({
@@ -273,8 +274,16 @@ export const addGroupTransaction = async (req: Request, res: Response) => {
       return res.status(401).json({ message: "User Not Found" });
     }
 
+    const group: GroupDocument | null = await Group.findOne({
+      _id: groupId,
+    });
+
+    if (!group) {
+      return res.status(404).json({ message: "Group doesn't exist" });
+    }
+
     const groupUsers: GroupUserDocument[] | null = await GroupUser.find({
-      _id: { $in: [...splitAmong, paidBy] },
+      _id: { $in: group.members },
     });
 
     if (!groupUsers) {
@@ -291,27 +300,60 @@ export const addGroupTransaction = async (req: Request, res: Response) => {
       transactionDate,
     });
 
-    const balanceDoc: BalanceDocument | null = await Balance.create({
-      groupId,
-      debtorIds: splitAmong
-        .filter((id: string) => id !== paidBy)
-        .map((id: string) => new Types.ObjectId(id)),
-      creditorId: new Types.ObjectId(paidBy),
-      amount: transactionAmount,
-      date: transactionDate,
+    const balances: BalanceDocument[] | null = await Balance.find({
+      groupId: new Types.ObjectId(groupId),
     });
 
-    const group: GroupDocument | null = await Group.findOne({
-      _id: groupId,
-    });
+    const balanceDebtors = splitAmong.filter((id: string) => id !== paidBy);
 
-    if (!group) {
-      return res.status(404).json({ message: "Group doesn't exist" });
+    for (const debtorId of balanceDebtors) {
+      // Check if Existing Balance exist or not
+      let existingBalance = balances.find((balance) => {
+        return (
+          balance.debtorId.equals(new Types.ObjectId(debtorId)) &&
+          balance.creditorId.equals(new Types.ObjectId(paidBy))
+        );
+      });
+      // Update if it exists
+      if (existingBalance) {
+        existingBalance.amount += transactionAmount / splitAmong.length;
+        await existingBalance.save();
+        continue;
+      }
+      // Check for Reverse Balance
+      const reverseBalance = balances.find((balance) => {
+        return (
+          balance.debtorId.equals(new Types.ObjectId(paidBy)) &&
+          balance.creditorId.equals(new Types.ObjectId(debtorId))
+        );
+      });
+      let amountToAdd = transactionAmount / splitAmong.length;
+      // Update if it exists
+      if (reverseBalance) {
+        if (reverseBalance.amount >= amountToAdd) {
+          // Update if Reverse Balance has more or equal amount
+          reverseBalance.amount -= amountToAdd;
+          await reverseBalance.save();
+        } else {
+          // Update the amount of New Balance
+          amountToAdd -= reverseBalance.amount;
+          // Delete Reverse Balance has less amount
+          await Balance.deleteOne({ _id: reverseBalance._id });
+        }
+      }
+
+      const balanceDoc = await Balance.create({
+        groupId: new Types.ObjectId(groupId),
+        debtorId: new Types.ObjectId(debtorId),
+        creditorId: new Types.ObjectId(paidBy),
+        amount: amountToAdd,
+      });
+
+      group.balances.push(new Types.ObjectId(balanceDoc._id));
     }
 
     group.totalExpense += transactionAmount;
     group.groupTransactions.push(new Types.ObjectId(GroupTransactionDoc._id));
-    group.balances.push(new Types.ObjectId(balanceDoc._id));
 
     await group.save();
 
