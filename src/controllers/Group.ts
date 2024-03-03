@@ -11,7 +11,6 @@ import {
   GroupTransaction,
   GroupTransactionDocument,
 } from "../models/GroupTransaction";
-import { consumers } from "nodemailer/lib/xoauth2";
 
 export const decodeEmail = (token: string) => {
   const decodedToken: string | JwtPayload = jwt.verify(
@@ -154,21 +153,17 @@ export const getAllGroups = async (req: Request, res: Response) => {
         const userId = new Types.ObjectId(user._id);
         return group.members.some((memberId) => userId.equals(memberId));
       }),
-      // balances: allBalances.map((balance) => ({
-      //   _id: balance._id,
-      //   groupId: balance.groupId,
-      //   debtorIds: allGroupUsers.filter((user) =>
-      //     balance.debtorIds.some((debtorId) =>
-      //       new Types.ObjectId(user._id).equals(debtorId)
-      //     )
-      //   ),
-      //   creditorId: allGroupUsers.find((user) =>
-      //     new Types.ObjectId(user._id).equals(balance.creditorId)
-      //   ),
-      //   amount: balance.amount,
-      //   status: balance.settled,
-      //   date: balance.date,
-      // })),
+      balances: allBalances.map((balance) => ({
+        _id: balance._id,
+        groupId: balance.groupId,
+        debtor: allGroupUsers.find((user) =>
+          new Types.ObjectId(user._id).equals(balance.debtorId)
+        ),
+        creditor: allGroupUsers.find((user) =>
+          new Types.ObjectId(user._id).equals(balance.creditorId)
+        ),
+        amount: balance.amount,
+      })),
       groupExpenses: allGroupTransactions
         .filter((transaction) => transaction.groupId.equals(group._id))
         .map((transaction) => ({
@@ -187,6 +182,7 @@ export const getAllGroups = async (req: Request, res: Response) => {
           transactionAmount: transaction.transactionAmount,
           transactionDate: transaction.transactionDate,
         })),
+      totalExpense: group.totalExpense,
     }));
 
     res.status(200).json({ groups: mappedGroups });
@@ -327,18 +323,25 @@ export const addGroupTransaction = async (req: Request, res: Response) => {
           balance.creditorId.equals(new Types.ObjectId(debtorId))
         );
       });
+
       let amountToAdd = transactionAmount / splitAmong.length;
       // Update if it exists
       if (reverseBalance) {
-        if (reverseBalance.amount >= amountToAdd) {
+        if (reverseBalance.amount > amountToAdd) {
           // Update if Reverse Balance has more or equal amount
           reverseBalance.amount -= amountToAdd;
           await reverseBalance.save();
+          continue;
         } else {
           // Update the amount of New Balance
           amountToAdd -= reverseBalance.amount;
           // Delete Reverse Balance has less amount
           await Balance.deleteOne({ _id: reverseBalance._id });
+          // If amountToAdd = 0, no need to create a new balance
+          if (amountToAdd === 0) {
+            continue;
+          }
+          // Else create a new one
         }
       }
 

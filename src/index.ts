@@ -61,6 +61,10 @@ io.on("connection", (socket) => {
     socketController.updateGroup(socket, data);
   });
 
+  socket.on("removeMember", (data) => {
+    socketController.updateGroup(socket, data);
+  });
+
   socket.on("disconnect", () => {
     socket.disconnect();
     console.log("Socket disconnected", socket.id);

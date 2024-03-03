@@ -172,21 +172,17 @@ export const updateGroup = async (
     groupId,
   });
 
-  // const balances = groupBalances.map((balance) => ({
-  //   _id: balance._id,
-  //   groupId: new Types.ObjectId(balance.groupId),
-  //   debtorIds: groupUsers.filter((user) =>
-  //     balance.debtorIds.some((debtorId) =>
-  //       new Types.ObjectId(user._id).equals(debtorId)
-  //     )
-  //   ),
-  //   creditorId: groupUsers.find((user) =>
-  //     new Types.ObjectId(user._id).equals(balance.creditorId)
-  //   ),
-  //   amount: balance.amount,
-  //   status: balance.settled,
-  //   date: balance.date,
-  // }));
+  const balances = groupBalances.map((balance) => ({
+    _id: balance._id,
+    groupId: balance.groupId,
+    debtor: groupUsers.find((user) =>
+      new Types.ObjectId(user._id).equals(balance.debtorId)
+    ),
+    creditor: groupUsers.find((user) =>
+      new Types.ObjectId(user._id).equals(balance.creditorId)
+    ),
+    amount: balance.amount,
+  }));
 
   const updatedGroup = {
     _id: group._id,
@@ -197,7 +193,7 @@ export const updateGroup = async (
     ),
     members: members,
     groupExpenses: transactions,
-    // balances: balances,
+    balances: balances,
     totalExpense: group.totalExpense,
     category: group.category,
   };
