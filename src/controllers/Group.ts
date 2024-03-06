@@ -366,3 +366,52 @@ export const addGroupTransaction = async (req: Request, res: Response) => {
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
+
+export const deleteBalance = async (req: Request, res: Response) => {
+  const { token, balanceId } = req.body;
+
+  const email = decodeEmail(token);
+
+  if (!email) {
+    return res.status(401).json({ message: "Invalid Token" });
+  }
+
+  try {
+    const user: UserDocument | null = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(401).json({ message: "User Not Found" });
+    }
+    console.log(user.userName);
+
+    const balance: BalanceDocument | null = await Balance.findOneAndDelete({
+      _id: balanceId,
+    });
+
+    if (!balance) {
+      return res.status(404).json({ message: "Balance not found" });
+    }
+    console.log(balance.amount);
+
+    const group: GroupDocument | null = await Group.findOne({
+      _id: balance.groupId,
+    });
+
+    if (!group) {
+      return res.status(404).json({ message: "Group not found" });
+    }
+    console.log(group.groupName, group.balances.length);
+
+    group.balances = group.balances.filter(
+      (balanceId) => !balanceId.equals(balance._id)
+    );
+    console.log(group.groupName, group.balances.length);
+
+    await group.save();
+
+    res.status(200).json({ message: "Balance Deleted Successfully" });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};

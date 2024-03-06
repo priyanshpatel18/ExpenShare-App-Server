@@ -65,6 +65,10 @@ io.on("connection", (socket) => {
     socketController.updateGroup(socket, data);
   });
 
+  socket.on("deleteBalance", (data) => {
+    socketController.updateGroup(socket, data);
+  });
+
   socket.on("disconnect", () => {
     socket.disconnect();
     console.log("Socket disconnected", socket.id);

@@ -244,7 +244,6 @@ export const updateTransaction = async (req: Request, res: Response) => {
     if (!user) {
       return res.status(401).json({ message: "User Not Found" });
     }
-    console.log(transactionId, typeof transactionId);
 
     const transaction: TransactionDocument | null = await Transaction.findById({
       _id: transactionId,
@@ -318,3 +317,4 @@ export const updateTransaction = async (req: Request, res: Response) => {
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
+
